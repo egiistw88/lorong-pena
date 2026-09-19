@@ -49,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="btn-nav-home"
             onClick={onOpenHome}
             title="Kembali ke Beranda"
+            aria-label={isReadingMode ? "Kembali ke Beranda Novel" : "Beranda Novel Yakin?"}
             className="flex items-center gap-1 min-h-[44px] min-w-[44px] px-2 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors hover:opacity-100 active:scale-95 focus:outline-none"
             style={{ color: 'var(--text-secondary)' }}
           >
@@ -75,6 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex-1 min-w-0 text-xs sm:text-sm font-serif tracking-widest text-center truncate uppercase opacity-75 px-1"
             style={{ color: 'var(--text-secondary)' }}
             title={currentUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${currentUnit.nomor}`}
+            aria-label={`Sedang membaca: ${currentUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${currentUnit.nomor}`}`}
           >
             {currentUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${currentUnit.nomor}`}
           </div>
@@ -87,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
               id="btn-toggle-tts"
               onClick={onToggleTTS}
               title={isTTSActive ? 'Tutup Pemutar Suara' : 'Dengarkan Naskah (TTS)'}
+              aria-label={isTTSActive ? 'Tutup pemutar suara naskah' : 'Dengarkan pembacaan naskah (suara narator)'}
               className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:opacity-100 active:scale-95"
               style={{
                 color: isTTSActive ? 'var(--quote-accent)' : 'var(--text-secondary)',
@@ -104,6 +107,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="btn-open-toc"
             onClick={onOpenTOC}
             title="Daftar Isi"
+            aria-label="Buka daftar isi kanon novel"
             className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:opacity-100 active:scale-95"
             style={{ color: 'var(--text-secondary)' }}
           >
@@ -115,6 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="btn-open-settings"
             onClick={onOpenSettings}
             title="Pengaturan Tampilan"
+            aria-label="Buka pengaturan tampilan dan tipografi baca"
             className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:opacity-100 active:scale-95"
             style={{ color: 'var(--text-secondary)' }}
           >

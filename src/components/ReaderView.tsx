@@ -8,11 +8,171 @@ import { ScrollParagraph } from './ScrollParagraph';
 import { ChapterOrnamentDivider } from './ChapterOrnamentDivider';
 import { splitParagraphIntoSentences } from '../lib/sentenceParser';
 
+interface ParsedParagraph {
+  raw: string;
+  isPlaceholder: boolean;
+  isFirstOfScene: boolean;
+  isDialog: boolean;
+  dropCapLetter: string;
+  isVeryFirstParagraph: boolean;
+  sentences: string[];
+  sentenceIds: string[];
+}
+
+interface ReaderParagraphItemProps {
+  sceneIndex: number;
+  pIndex: number;
+  data: ParsedParagraph;
+  unitId: string;
+  isFastScrolling: boolean;
+  activeSentenceId?: string | null;
+  onSentenceClick?: (sentenceId: string) => void;
+  modeAnimasi: 'tenang' | 'hidup';
+}
+
+const ReaderParagraphItem = React.memo<ReaderParagraphItemProps>(
+  ({
+    sceneIndex,
+    pIndex,
+    data,
+    unitId,
+    isFastScrolling,
+    activeSentenceId,
+    onSentenceClick,
+    modeAnimasi,
+  }) => {
+    let className = '';
+    if (data.isFirstOfScene) {
+      className += ' adegan-first-p';
+    }
+    if (data.isDialog) {
+      className += ' dialog';
+    }
+
+    return (
+      <ScrollParagraph
+        key={pIndex}
+        isInitial={sceneIndex === 0 && pIndex < 3}
+        isFastScrolling={isFastScrolling}
+        modeAnimasi={modeAnimasi}
+        className={className}
+        style={{
+          fontStyle: data.isPlaceholder ? 'italic' : 'normal',
+          opacity: data.isPlaceholder ? 0.75 : 1,
+          backgroundColor: data.isPlaceholder ? 'var(--bg-surface)' : 'transparent',
+          padding: data.isPlaceholder ? '1rem' : undefined,
+          borderRadius: data.isPlaceholder ? '0.5rem' : undefined,
+          marginBottom: data.isPlaceholder ? '1rem' : undefined,
+          border: data.isPlaceholder ? '1px dashed var(--border-color)' : undefined,
+          fontSize: data.isPlaceholder ? '0.9em' : undefined,
+        }}
+      >
+        {data.isPlaceholder ? (
+          data.raw
+        ) : (
+          data.sentences.map((sentence, sIndex) => {
+            const sentenceId = data.sentenceIds[sIndex];
+            const isActive = activeSentenceId === sentenceId;
+            const isFirstSentenceOfChapter = data.isVeryFirstParagraph && sIndex === 0;
+
+            let content = sentence;
+            let leadingDropCap: React.ReactNode = null;
+
+            if (isFirstSentenceOfChapter && data.dropCapLetter) {
+              leadingDropCap = (
+                <IlluminatedDropCap
+                  letter={data.dropCapLetter}
+                  unitId={unitId}
+                  modeAnimasi={modeAnimasi}
+                />
+              );
+              content = sentence.slice(1);
+            }
+
+            const segments = content.split(/([“"”‘'])/g);
+
+            return (
+              <span
+                key={sIndex}
+                id={sentenceId}
+                onClick={() => onSentenceClick?.(sentenceId)}
+                className={`tts-sentence-span transition-colors duration-150 cursor-pointer ${
+                  isActive ? 'tts-active-sentence font-medium' : 'hover:opacity-95'
+                }`}
+                style={{
+                  backgroundColor: isActive ? 'var(--accent-bg)' : undefined,
+                  color: isActive ? 'var(--accent-color)' : undefined,
+                  borderRadius: isActive ? '4px' : undefined,
+                  padding: isActive ? '1px 3px' : undefined,
+                }}
+                title="Klik untuk mendengarkan dari kalimat ini"
+              >
+                {leadingDropCap}
+                {segments.map((seg, i) => {
+                  const isQuote =
+                    seg === '“' || seg === '”' || seg === '"' || seg === '‘' || seg === '’' || seg === "'";
+
+                  if (isQuote) {
+                    return (
+                      <span
+                        key={i}
+                        className="dialogue-quote-mark font-serif select-none"
+                        style={{
+                          color: 'var(--quote-accent)',
+                          fontWeight: 600,
+                        }}
+                        aria-hidden="true"
+                      >
+                        {seg}
+                      </span>
+                    );
+                  }
+
+                  return <React.Fragment key={i}>{seg}</React.Fragment>;
+                })}{' '}
+              </span>
+            );
+          })
+        )}
+      </ScrollParagraph>
+    );
+  },
+  (prev, next) => {
+    if (
+      prev.data !== next.data ||
+      prev.isFastScrolling !== next.isFastScrolling ||
+      prev.modeAnimasi !== next.modeAnimasi ||
+      prev.unitId !== next.unitId ||
+      prev.onSentenceClick !== next.onSentenceClick
+    ) {
+      return false;
+    }
+
+    const prevHadActive = Boolean(
+      prev.activeSentenceId && prev.data.sentenceIds.includes(prev.activeSentenceId)
+    );
+    const nextHasActive = Boolean(
+      next.activeSentenceId && next.data.sentenceIds.includes(next.activeSentenceId)
+    );
+
+    if (!prevHadActive && !nextHasActive) {
+      return true;
+    }
+
+    if (prev.activeSentenceId === next.activeSentenceId) {
+      return true;
+    }
+
+    return false;
+  }
+);
+
 interface ReaderViewProps {
   unit: UnitNarasi;
   previousUnit?: UnitNarasi;
   nextUnit?: UnitNarasi;
   settings: ReaderSettings;
+  initialScrollPercentage?: number;
   onNavigateToUnit: (unitId: string) => void;
   onOpenTOC: () => void;
   onScrollProgressChange: (progress: number) => void;
@@ -29,6 +189,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   previousUnit,
   nextUnit,
   settings,
+  initialScrollPercentage = 0,
   onNavigateToUnit,
   onOpenTOC,
   onScrollProgressChange,
@@ -40,6 +201,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onChromeVisibilityChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chapterHeadingRef = useRef<HTMLHeadingElement>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
@@ -64,15 +226,35 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onChromeVisibilityChangeRef.current = onChromeVisibilityChange;
   const lastScrollYPos = useRef(0);
 
-  // 1. Reset window scroll to top ONLY when unit.id changes
+  // 1. Reset window scroll atau pulihkan posisi baca saat unit.id pertama kali mount/berganti
   useEffect(() => {
-    window.scrollTo(0, 0);
     setHasScrolledToEnd(false);
     setIsFastScrolling(false);
     lastScrollY.current = 0;
     lastScrollYPos.current = 0;
     lastScrollTime.current = Date.now();
     onChromeVisibilityChangeRef.current?.(true);
+
+    if (initialScrollPercentage > 2 && initialScrollPercentage < 95) {
+      // Pulihkan posisi scroll setelah elemen dirender di DOM
+      const timer = setTimeout(() => {
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        if (docHeight > 0) {
+          const targetY = Math.round((initialScrollPercentage / 100) * docHeight);
+          window.scrollTo({ top: targetY, behavior: 'instant' });
+          lastScrollY.current = targetY;
+          lastScrollYPos.current = targetY;
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      window.scrollTo(0, 0);
+      // Pindahkan fokus ke heading bab secara ramah aksesibilitas (screen reader & keyboard)
+      const focusTimer = setTimeout(() => {
+        chapterHeadingRef.current?.focus({ preventScroll: true });
+      }, 50);
+      return () => clearTimeout(focusTimer);
+    }
   }, [unit.id]);
 
   // 2. Track scroll position without ever resetting scroll
@@ -146,10 +328,20 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Don't trigger if user is in an input or textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      // Jangan jalankan jika user berada di input atau textarea
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
+      // Jangan jalankan jika ada modal overlay aktif di layar
+      const isModalOpen = Boolean(
+        document.getElementById('toc-modal-overlay') ||
+        document.getElementById('settings-overlay') ||
+        document.getElementById('tts-options-overlay')
+      );
+      if (isModalOpen) {
+        return;
+      }
+
       if (e.key === 'ArrowLeft' && previousUnit) {
         e.preventDefault();
         onNavigateToUnit(previousUnit.id);
@@ -243,63 +435,45 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     return settings.columnWidth === 'lebar' ? 'max-w-[72ch]' : 'max-w-[62ch]';
   };
 
-  /**
-   * Render kalimat dengan tanda kutip dialog diberi warna aksen buku:
-   * - Tanda kutip pembuka/penutup (", “, ”, ‘, ’) diberi warna aksen var(--quote-accent).
-   * - Teks dialog dan tag dialog tetap warna tinta biasa (bukan italic, tanpa bubble).
-   * - Huruf pertama paragraf pembuka dirender dengan IlluminatedDropCap (ink color).
-   */
-  const renderSentenceWithQuotes = (
-    sentence: string,
-    isFirstSentenceOfChapter: boolean,
-    dropCapLetter: string,
-    unitId: string
-  ) => {
-    let content = sentence;
-    let leadingDropCap: React.ReactNode = null;
+  // Optimasi Memoization: Parse adegan dan kalimat sekali per pergantian bab atau naskah
+  const parsedScenes = useMemo(() => {
+    return unit.adegan.map((adegan, sceneIndex) => ({
+      paragrafs: adegan.paragraf.map((paragraf, pIndex) => {
+        const isFirstOfScene = pIndex === 0;
+        const isDialog =
+          paragraf.trim().startsWith('“') ||
+          paragraf.trim().startsWith('"') ||
+          paragraf.trim().startsWith('-');
+        const isPlaceholder = paragraf.startsWith('[');
+        const isVeryFirstParagraph = sceneIndex === 0 && pIndex === 0;
 
-    if (isFirstSentenceOfChapter && dropCapLetter) {
-      leadingDropCap = (
-        <IlluminatedDropCap
-          letter={dropCapLetter}
-          unitId={unitId}
-          modeAnimasi={settings.modeAnimasi || 'tenang'}
-        />
-      );
-      content = sentence.slice(1);
-    }
-
-    // Pisahkan berdasarkan tanda kutip ganda dan tunggal
-    const segments = content.split(/([“"”‘'])/g);
-
-    return (
-      <>
-        {leadingDropCap}
-        {segments.map((seg, i) => {
-          const isQuote =
-            seg === '“' || seg === '”' || seg === '"' || seg === '‘' || seg === '’' || seg === "'";
-
-          if (isQuote) {
-            return (
-              <span
-                key={i}
-                className="dialogue-quote-mark font-serif select-none"
-                style={{
-                  color: 'var(--quote-accent)',
-                  fontWeight: 600,
-                }}
-                aria-hidden="true"
-              >
-                {seg}
-              </span>
-            );
+        let dropCapLetter = '';
+        if (isVeryFirstParagraph && paragraf.length > 0 && !isPlaceholder) {
+          const trimmed = paragraf.trim();
+          const firstChar = trimmed.charAt(0);
+          if (/[a-zA-Z]/i.test(firstChar)) {
+            dropCapLetter = firstChar.toUpperCase();
           }
+        }
 
-          return <React.Fragment key={i}>{seg}</React.Fragment>;
-        })}
-      </>
-    );
-  };
+        const sentences = isPlaceholder ? [paragraf] : splitParagraphIntoSentences(paragraf);
+        const sentenceIds = sentences.map(
+          (_, sIndex) => `sent-${unit.id}-${sceneIndex}-${pIndex}-${sIndex}`
+        );
+
+        return {
+          raw: paragraf,
+          isPlaceholder,
+          isFirstOfScene,
+          isDialog,
+          dropCapLetter,
+          isVeryFirstParagraph,
+          sentences,
+          sentenceIds,
+        };
+      }),
+    }));
+  }, [unit.id, unit.adegan]);
 
   return (
     <main
@@ -323,6 +497,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       }}
     >
       <div className={`mx-auto ${getColumnWidthClass()}`}>
+        {/* Pengumuman Pergantian Bab Ramah Pembaca Layar (Screen Reader a11y) */}
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {`Membuka ${unit.nomor === 'Prolog' ? 'Prolog' : 'Bab ' + unit.nomor}: ${unit.judul}`}
+        </div>
+
         {/* Kontainer Animasi Masuk Bab */}
         <div key={unit.id} className="chapter-enter-animation">
           {/* Unit Header / Pembuka Bab Tiga Lapis Tipografi Buku Cetak */}
@@ -335,9 +514,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               {unit.nomor === 'Prolog' ? 'Prolog' : `Bab ${unit.nomor}`}
             </div>
 
-            {/* Lapis 2: Judul bab dalam ukuran besar */}
+            {/* Lapis 2: Judul bab dalam ukuran besar dengan dukungan fokus aksesibilitas */}
             <h1
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-[40px] font-serif font-bold tracking-tight mb-2 leading-tight"
+              ref={chapterHeadingRef}
+              tabIndex={-1}
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-[40px] font-serif font-bold tracking-tight mb-2 leading-tight focus:outline-hidden"
               style={getFontFamilyStyle()}
             >
               {unit.judul}
@@ -373,97 +554,28 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             ...getLineHeightStyle(),
           }}
         >
-          {unit.adegan.map((adegan, sceneIndex) => (
+          {parsedScenes.map((scene, sceneIndex) => (
             <section key={sceneIndex} className="adegan-block">
-              {adegan.paragraf.map((paragraf, pIndex) => {
-                // Paragraf pertama dari bab atau setelah scene break tidak diindentasi
-                const isFirstOfScene = pIndex === 0;
-                // Cek apakah dialog yang diawali kutip
-                const isDialog = paragraf.trim().startsWith('“') || paragraf.trim().startsWith('"') || paragraf.trim().startsWith('-');
-
-                let className = '';
-                if (isFirstOfScene) {
-                  className += ' adegan-first-p';
-                }
-                if (isDialog) {
-                  className += ' dialog';
-                }
-
-                // Cek jika teks masih berupa placeholder netral
-                const isPlaceholder = paragraf.startsWith('[');
-
-                // Drop cap untuk huruf pertama di paragraf pertama bab
-                const isVeryFirstParagraph = sceneIndex === 0 && pIndex === 0;
-                let dropCapLetter = '';
-
-                if (isVeryFirstParagraph && paragraf.length > 0 && !isPlaceholder) {
-                  const trimmed = paragraf.trim();
-                  const firstChar = trimmed.charAt(0);
-                  if (/[a-zA-Z]/i.test(firstChar)) {
-                    dropCapLetter = firstChar.toUpperCase();
-                  }
-                }
-
-                const sentences = isPlaceholder ? [paragraf] : splitParagraphIntoSentences(paragraf);
-
-                return (
-                  <ScrollParagraph
-                    key={pIndex}
-                    isInitial={sceneIndex === 0 && pIndex < 3}
-                    isFastScrolling={isFastScrolling}
-                    className={className}
-                    style={{
-                      fontStyle: isPlaceholder ? 'italic' : 'normal',
-                      opacity: isPlaceholder ? 0.75 : 1,
-                      backgroundColor: isPlaceholder ? 'var(--bg-surface)' : 'transparent',
-                      padding: isPlaceholder ? '1rem' : undefined,
-                      borderRadius: isPlaceholder ? '0.5rem' : undefined,
-                      marginBottom: isPlaceholder ? '1rem' : undefined,
-                      border: isPlaceholder ? '1px dashed var(--border-color)' : undefined,
-                      fontSize: isPlaceholder ? '0.9em' : undefined,
-                    }}
-                  >
-                    {isPlaceholder ? (
-                      paragraf
-                    ) : (
-                      sentences.map((sentence, sIndex) => {
-                        const sentenceId = `sent-${unit.id}-${sceneIndex}-${pIndex}-${sIndex}`;
-                        const isActive = activeSentenceId === sentenceId;
-                        const isFirstSentenceOfChapter = isVeryFirstParagraph && sIndex === 0;
-
-                        return (
-                          <span
-                            key={sIndex}
-                            id={sentenceId}
-                            onClick={() => onSentenceClick?.(sentenceId)}
-                            className={`tts-sentence-span transition-colors duration-150 cursor-pointer ${
-                              isActive ? 'tts-active-sentence font-medium' : 'hover:opacity-95'
-                            }`}
-                            style={{
-                              backgroundColor: isActive ? 'var(--accent-bg)' : undefined,
-                              color: isActive ? 'var(--accent-color)' : undefined,
-                              borderRadius: isActive ? '4px' : undefined,
-                              padding: isActive ? '1px 3px' : undefined,
-                            }}
-                            title="Klik untuk mendengarkan dari kalimat ini"
-                          >
-                            {renderSentenceWithQuotes(
-                              sentence,
-                              isFirstSentenceOfChapter,
-                              dropCapLetter,
-                              unit.id
-                            )}{' '}
-                          </span>
-                        );
-                      })
-                    )}
-                  </ScrollParagraph>
-                );
-              })}
+              {scene.paragrafs.map((paragrafData, pIndex) => (
+                <ReaderParagraphItem
+                  key={pIndex}
+                  sceneIndex={sceneIndex}
+                  pIndex={pIndex}
+                  data={paragrafData}
+                  unitId={unit.id}
+                  isFastScrolling={isFastScrolling}
+                  activeSentenceId={activeSentenceId}
+                  onSentenceClick={onSentenceClick}
+                  modeAnimasi={settings.modeAnimasi || 'tenang'}
+                />
+              ))}
 
               {/* Pemisah Adegan (Scene Break) • • • dengan stagger bertahap jika bukan adegan terakhir */}
-              {sceneIndex < unit.adegan.length - 1 && (
-                <SceneBreak key={`break-${sceneIndex}`} />
+              {sceneIndex < parsedScenes.length - 1 && (
+                <SceneBreak
+                  key={`break-${sceneIndex}`}
+                  modeAnimasi={settings.modeAnimasi || 'tenang'}
+                />
               )}
             </section>
           ))}
@@ -490,6 +602,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               <button
                 id="btn-next-chapter-confirm"
                 onClick={() => onNavigateToUnit(nextUnit.id)}
+                aria-label={`Lanjut ke ${nextUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${nextUnit.nomor}`}: ${nextUnit.judul}`}
                 className="w-full sm:w-auto px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-xs flex items-center justify-center gap-2"
                 style={{
                   backgroundColor: 'var(--accent-color)',
@@ -504,6 +617,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <button
               id="btn-back-to-toc"
               onClick={onOpenTOC}
+              aria-label="Buka Daftar Isi Novel"
               className="w-full sm:w-auto px-5 py-3 rounded-lg text-sm font-medium border transition-colors flex items-center justify-center gap-2"
               style={{
                 borderColor: 'var(--border-color)',
@@ -529,6 +643,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <button
               id="btn-nav-prev-unit"
               onClick={() => onNavigateToUnit(previousUnit.id)}
+              aria-label={`Menuju bab sebelumnya: ${previousUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${previousUnit.nomor}`} - ${previousUnit.judul}`}
               className="flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 px-3 sm:px-4 rounded-lg hover:opacity-80 active:scale-95 transition-all border flex-1 sm:flex-initial"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}
             >
@@ -541,7 +656,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <div className="flex-1 sm:flex-initial" />
           )}
 
-          <div className="text-center font-mono text-xs hidden sm:block px-2">
+          <div className="text-center font-mono text-xs hidden sm:block px-2" aria-hidden="true">
             Gunakan tombol panah &larr; / &rarr; di keyboard
           </div>
 
@@ -549,6 +664,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <button
               id="btn-nav-next-unit"
               onClick={() => onNavigateToUnit(nextUnit.id)}
+              aria-label={`Menuju bab berikutnya: ${nextUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${nextUnit.nomor}`} - ${nextUnit.judul}`}
               className="flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 px-3 sm:px-4 rounded-lg hover:opacity-80 active:scale-95 transition-all border flex-1 sm:flex-initial"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}
             >

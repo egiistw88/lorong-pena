@@ -6,20 +6,23 @@ interface ScrollParagraphProps {
   style?: React.CSSProperties;
   isInitial?: boolean; // Paragraf awal layar langsung terlihat tanpa transisi
   isFastScrolling?: boolean; // Jika pembaca sedang scroll cepat, jangan tunda tampilan
+  modeAnimasi?: 'tenang' | 'hidup'; // Mode tenang: murni statis ala buku cetak, mode hidup: reveal halus
 }
 
-export const ScrollParagraph: React.FC<ScrollParagraphProps> = ({
+export const ScrollParagraph: React.FC<ScrollParagraphProps> = React.memo(({
   children,
   className = '',
   style = {},
   isInitial = false,
   isFastScrolling = false,
+  modeAnimasi = 'tenang',
 }) => {
-  const [isRevealed, setIsRevealed] = useState(isInitial);
+  const isQuiet = modeAnimasi === 'tenang';
+  const [isRevealed, setIsRevealed] = useState(isInitial || isQuiet);
   const pRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    if (isInitial || isRevealed) return;
+    if (isInitial || isQuiet || isRevealed) return;
 
     // Jika reduced motion aktif, langsung tampilkan
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -55,7 +58,7 @@ export const ScrollParagraph: React.FC<ScrollParagraphProps> = ({
     return () => {
       observer.disconnect();
     };
-  }, [isInitial, isFastScrolling, isRevealed]);
+  }, [isInitial, isQuiet, isFastScrolling, isRevealed]);
 
   // Efek jika isFastScrolling berubah menjadi true setelah mount
   useEffect(() => {
@@ -70,13 +73,13 @@ export const ScrollParagraph: React.FC<ScrollParagraphProps> = ({
       className={className}
       style={{
         ...style,
-        opacity: isRevealed ? (style.opacity ?? 1) : 0.4,
-        transform: isRevealed ? 'none' : 'translateY(4px)',
-        transition: isInitial ? 'none' : 'opacity 150ms ease-out, transform 150ms ease-out',
-        willChange: isRevealed ? 'auto' : 'opacity, transform',
+        opacity: isRevealed || isQuiet ? (style.opacity ?? 1) : 0.4,
+        transform: isRevealed || isQuiet ? 'none' : 'translateY(4px)',
+        transition: isInitial || isQuiet ? 'none' : 'opacity 150ms ease-out, transform 150ms ease-out',
+        willChange: isRevealed || isQuiet ? 'auto' : 'opacity, transform',
       }}
     >
       {children}
     </p>
   );
-};
+});

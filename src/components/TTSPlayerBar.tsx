@@ -59,6 +59,17 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
 }) => {
   const [showOptions, setShowOptions] = useState(false);
 
+  // Dukungan tombol Escape untuk menutup panel opsi TTS
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showOptions) {
+        setShowOptions(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showOptions]);
+
   const speedPresets = [
     { label: '0.8x', value: 0.8, hint: 'Renung' },
     { label: '0.88x', value: 0.88, hint: 'Hikayat' },
@@ -212,6 +223,7 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
                       <button
                         key={preset.value}
                         onClick={() => onUpdateSettings({ rate: preset.value })}
+                        aria-label={`Kecepatan suara narasi ${preset.label}${preset.hint ? ` mode ${preset.hint}` : ''}`}
                         className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] font-mono font-medium transition-all active:scale-95 cursor-pointer"
                         style={{
                           backgroundColor: isCurrent ? 'var(--accent-color)' : 'var(--bg-panel)',
@@ -302,6 +314,9 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
         >
           <div
             id="tts-options-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tts-options-title"
             className="w-full sm:max-w-lg max-h-[90vh] sm:max-h-[85vh] border-t sm:border shadow-2xl rounded-t-3xl sm:rounded-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
             style={{
               backgroundColor: 'var(--bg-panel)',
@@ -322,7 +337,7 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
               style={{ borderColor: 'var(--border-color)' }}
             >
               <div>
-                <h3 className="text-base font-serif font-bold tracking-tight">
+                <h3 id="tts-options-title" className="text-base font-serif font-bold tracking-tight">
                   Pengaturan Suara Narasi
                 </h3>
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>

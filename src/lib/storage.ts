@@ -47,6 +47,7 @@ export const DEFAULT_PROGRESS: ReadingProgress = {
   completedUnitIds: [],
   lastReadTimestamp: Date.now(),
   scrollPercentage: 0,
+  unitScrollPercentages: {},
 };
 
 export function loadProgress(): ReadingProgress {
@@ -67,6 +68,10 @@ export function saveProgress(progress: Partial<ReadingProgress>): ReadingProgres
     const updated: ReadingProgress = {
       ...current,
       ...progress,
+      unitScrollPercentages: {
+        ...(current.unitScrollPercentages || {}),
+        ...(progress.unitScrollPercentages || {}),
+      },
       lastReadTimestamp: Date.now(),
     };
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(updated));

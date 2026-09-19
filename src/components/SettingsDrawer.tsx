@@ -87,6 +87,9 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     >
       <div
         id="settings-drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-drawer-title"
         className="w-full sm:max-w-md h-[92vh] sm:h-full border-t sm:border-t-0 sm:border-l shadow-2xl rounded-t-2xl sm:rounded-t-none flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom-5 sm:slide-in-from-right-5 duration-200"
         style={{
           backgroundColor: 'var(--bg-panel)',
@@ -100,7 +103,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         {/* Header Drawer */}
         <div className="flex items-center justify-between px-4 sm:px-6 pt-2 pb-3.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
           <div>
-            <h2 className="text-base font-serif font-bold tracking-tight">Pengaturan Tampilan</h2>
+            <h2 id="settings-drawer-title" className="text-base font-serif font-bold tracking-tight">Pengaturan Tampilan</h2>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               Kustomisasi kenyamanan membaca buku
             </p>
@@ -121,11 +124,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Tema Halaman
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: 'terang', label: 'Terang', icon: Sun, bg: '#faf8f5', text: '#201e1c', border: '#ded9cf' },
                   { id: 'sephia', label: 'Sephia', icon: BookOpen, bg: '#f4eee2', text: '#382d22', border: '#dfd5c4' },
                   { id: 'gelap', label: 'Gelap', icon: Moon, bg: '#151413', text: '#ded9d1', border: '#332f2b' },
+                  { id: 'oled', label: 'OLED', icon: Moon, bg: '#000000', text: '#e6e1d8', border: '#22201d' },
                 ].map((t) => {
                   const Icon = t.icon;
                   const isSelected = settings.theme === t.id;

@@ -63,6 +63,25 @@
     background-color: var(--bg-page);
     color: var(--text-primary);
   }
+
+  /* Tema OLED (Hitam Pekat Layar AMOLED, Ramah Baca Malam) */
+  .theme-oled {
+    --bg-page: #000000;
+    --bg-surface: #0a0a0a;
+    --bg-panel: #121212;
+    --text-primary: #e6e1d8;
+    --text-secondary: #948c82;
+    --text-tertiary: #5f5951;
+    --border-color: #1f1d1b;
+    --border-subtle: #141312;
+    --accent-color: #f59e0b;
+    --quote-accent: #f59e0b;
+    --accent-bg: #1c1917;
+    --badge-bg: #141210;
+    --badge-text: #a8a29e;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
 }
 
 /* Tipografi Buku Cetak */

@@ -36,6 +36,9 @@ export default function App() {
   // Reading scroll percentage for top indicator
   const [scrollProgress, setScrollProgress] = useState(0);
 
+  // Debounced scroll persistence ref
+  const scrollSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
   // Chrome visibility (auto-hide saat scroll ke bawah, muncul saat scroll ke atas atau disentuh)
   const [isChromeVisible, setIsChromeVisible] = useState(true);
 
@@ -87,16 +90,60 @@ export default function App() {
     });
   }, []);
 
-  // Navigation handlers
-  const handleNavigateToUnit = useCallback((unitId: string) => {
-    setCurrentUnitId(unitId);
-    setActiveView('reader');
-    setScrollProgress(0);
-    setIsChromeVisible(true);
+  // Navigation handlers with scroll reset option
+  const handleNavigateToUnit = useCallback(
+    (unitId: string, resetScroll = true) => {
+      setCurrentUnitId(unitId);
+      setActiveView('reader');
+      setIsChromeVisible(true);
 
-    const updated = saveProgress({ currentUnitId: unitId });
-    setProgress(updated);
-  }, []);
+      if (resetScroll) {
+        setScrollProgress(0);
+        const updated = saveProgress({
+          currentUnitId: unitId,
+          scrollPercentage: 0,
+          unitScrollPercentages: {
+            ...(progress.unitScrollPercentages || {}),
+            [unitId]: 0,
+          },
+        });
+        setProgress(updated);
+      } else {
+        const savedScroll =
+          progress.unitScrollPercentages?.[unitId] ?? progress.scrollPercentage ?? 0;
+        setScrollProgress(savedScroll);
+        const updated = saveProgress({ currentUnitId: unitId });
+        setProgress(updated);
+      }
+    },
+    [progress.unitScrollPercentages, progress.scrollPercentage]
+  );
+
+  // Debounced scroll progress persistence
+  const handleScrollProgressChange = useCallback(
+    (newProgress: number) => {
+      setScrollProgress(newProgress);
+
+      if (scrollSaveTimeoutRef.current) {
+        clearTimeout(scrollSaveTimeoutRef.current);
+      }
+
+      scrollSaveTimeoutRef.current = setTimeout(() => {
+        setProgress((prev) => {
+          const updated = saveProgress({
+            currentUnitId,
+            scrollPercentage: newProgress,
+            unitScrollPercentages: {
+              ...(prev.unitScrollPercentages || {}),
+              [currentUnitId]: newProgress,
+            },
+          });
+          return updated;
+        });
+      }, 500);
+    },
+    [currentUnitId]
+  );
 
   // TTS Player Hook
   const tts = useTTSPlayer({
@@ -135,7 +182,10 @@ export default function App() {
   const handleResumeReading = useCallback(() => {
     setActiveView('reader');
     setIsChromeVisible(true);
-  }, []);
+    const savedScroll =
+      progress.unitScrollPercentages?.[currentUnitId] ?? progress.scrollPercentage ?? 0;
+    setScrollProgress(savedScroll);
+  }, [currentUnitId, progress.unitScrollPercentages, progress.scrollPercentage]);
 
   const handleOpenHome = useCallback(() => {
     if (tts.isPlaying) {
@@ -187,9 +237,13 @@ export default function App() {
             previousUnit={previousUnit}
             nextUnit={nextUnit}
             settings={settings}
-            onNavigateToUnit={handleNavigateToUnit}
+            initialScrollPercentage={
+              progress.unitScrollPercentages?.[currentUnit.id] ??
+              (progress.currentUnitId === currentUnit.id ? progress.scrollPercentage : 0)
+            }
+            onNavigateToUnit={(targetId) => handleNavigateToUnit(targetId, true)}
             onOpenTOC={() => setIsTOCOpen(true)}
-            onScrollProgressChange={setScrollProgress}
+            onScrollProgressChange={handleScrollProgressChange}
             onMarkUnitCompleted={handleMarkUnitCompleted}
             isCompleted={progress.completedUnitIds.includes(currentUnit.id)}
             activeSentenceId={tts.activeSentenceId}

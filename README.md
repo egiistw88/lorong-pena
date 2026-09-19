@@ -22,16 +22,17 @@ Aplikasi ini dirancang khusus sebagai wadah pembaca digital interaktif (*dedicat
 
 Aplikasi dibangun dengan prinsip **kenyamanan membaca jangka panjang** (*extended reading comfort*):
 
-- **🎨 3 Mode Tema Optik Khusus Buku**:
-  - **Terang (Kertas Alami / Parchment)**: Kontras seimbang menyerupai kertas cetak berkualitas tinggi.
-  - **Sepia Hangat**: Nuansa kuning-cokelat lembut yang mengurangi keletihan mata di sore atau senja hari.
-  - **Gelap Lembut (Dark Slate)**: Skema gelap yang teduh dengan kontras rendah yang tidak menusuk mata.
+- **🎨 4 Mode Tema Optik Khusus Buku**:
+  - **Terang (Kertas Alami / Parchment)**: Kontras seimbang menyerupai lembaran kertas cetak berkualitas tinggi.
+  - **Sepia Hangat**: Nuansa kuning-cokelat lembut yang mengurangi keletihan mata saat membaca di sore hari.
+  - **Gelap Lembut (Dark Slate)**: Skema gelap teduh dengan kontras rendah yang tidak menusuk mata.
+  - **OLED (Hitam Pekat AMOLED)**: Latar hitam murni (`#000000`) untuk efisiensi daya dan kenyamanan mata di malam hari.
 - **🔤 Penyesuaian Tipografi & Geometri Baca**:
   - Pilihan jenis huruf: Klasik Serif (*Literata*), Humanist Serif (*Source Serif 4*), dan Modern Sans (*Plus Jakarta Sans*).
   - Skala ukuran huruf: 4 tingkat kenyamanan (*sm*, *md*, *lg*, *xl*).
-  - Spasi baris (*line-height*): Rapat (1.5), Nyaman (1.75), hingga Lapang (2.0).
-  - Lebar kolom teks terukur: Sedang (65–70 karakter per baris) dan Lebar (75–80 karakter).
-  - Mode irama animasi: Tenang (minim gerakan) atau Hidup (animasi transisi halus).
+  - Spasi baris (*line-height*): Rapat (1.55), Nyaman (1.70), hingga Lapang (1.90).
+  - Lebar kolom teks terukur: Sedang (62 karakter per baris) dan Lebar (72 karakter per baris).
+  - Mode irama animasi: **Tenang** (bawaan, murni statis ala buku fisik) atau **Hidup** (sentuhan kaligrafi iluminasi stroke-draw pada huruf pembuka bab, stagger pembatas adegan `• • •`, dan reveal paragraf yang sepenuhnya menghormati `prefers-reduced-motion`).
 - **🔊 Mesin Narasi Suara (Text-to-Speech / TTS)**:
   - Pemutar audio terintegrasi berbasis Web Speech API bawaan perangkat/peramban.
   - Pilihan karakter narasi sastra (*Hikayat*, *Renung*, dan *Wicara*).

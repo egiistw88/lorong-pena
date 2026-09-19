@@ -53,7 +53,7 @@ export interface NovelMeta {
   bagian: BagianMeta[];
 }
 
-export type ThemeMode = 'terang' | 'gelap' | 'sephia';
+export type ThemeMode = 'terang' | 'gelap' | 'sephia' | 'oled';
 export type FontFamilyOption = 'literata' | 'source-serif' | 'sans';
 export type FontSizeOption = 'sm' | 'md' | 'lg' | 'xl';
 export type LineHeightOption = 'rapat' | 'nyaman' | 'lapang';
@@ -74,6 +74,7 @@ export interface ReadingProgress {
   completedUnitIds: string[];
   lastReadTimestamp: number;
   scrollPercentage: number;
+  unitScrollPercentages?: Record<string, number>;
 }
 
 export type TTSEngine = 'web-speech';

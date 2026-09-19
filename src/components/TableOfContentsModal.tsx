@@ -90,6 +90,9 @@ export const TableOfContentsModal: React.FC<TableOfContentsModalProps> = ({
     >
       <div
         id="toc-modal-container"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="toc-modal-title"
         className="w-full max-w-2xl h-[92vh] sm:h-auto sm:max-h-[88vh] flex flex-col rounded-t-2xl sm:rounded-xl border-t sm:border shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
         style={{
           backgroundColor: 'var(--bg-panel)',
@@ -118,7 +121,7 @@ export const TableOfContentsModal: React.FC<TableOfContentsModalProps> = ({
                 {totalUnitsInApp} dari {totalCanonicalUnits} unit
               </span>
             </div>
-            <h2 className="text-base sm:text-xl font-serif font-bold tracking-tight truncate">
+            <h2 id="toc-modal-title" className="text-base sm:text-xl font-serif font-bold tracking-tight truncate">
               {NOVEL_METADATA.judul}
             </h2>
             <p className="text-[11px] sm:text-xs mt-0.5 truncate" style={{ color: 'var(--text-secondary)' }}>

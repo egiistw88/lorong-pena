@@ -26,6 +26,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const totalUnits = units.length;
   const progressPercent = totalUnits > 0 ? Math.round((completedCount / totalUnits) * 100) : 0;
   const isJustStarting = completedCount === 0 && lastReadUnit.id === 'prolog';
+  const savedScroll = progress.unitScrollPercentages?.[lastReadUnit.id] ?? progress.scrollPercentage ?? 0;
 
   return (
     <div
@@ -92,7 +93,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
           >
             <div className="text-left min-w-0 pr-3">
               <div className="text-[10px] uppercase font-mono tracking-wider opacity-90 mb-0.5">
-                {isJustStarting ? 'Mulai Membaca' : 'Lanjutkan Membaca'}
+                {isJustStarting
+                  ? 'Mulai Membaca'
+                  : savedScroll > 2
+                  ? `Lanjutkan Membaca \u2022 ${savedScroll}%`
+                  : 'Lanjutkan Membaca'}
               </div>
               <div className="text-base font-serif font-bold truncate">
                 {lastReadUnit.nomor === 'Prolog' ? 'Prolog' : `Bab ${lastReadUnit.nomor}`}: {lastReadUnit.judul}

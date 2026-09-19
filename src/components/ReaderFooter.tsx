@@ -70,6 +70,7 @@ export const ReaderFooter: React.FC<ReaderFooterProps> = ({
               className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg transition-colors hover:opacity-100 active:scale-95"
               style={{ color: 'var(--text-secondary)' }}
               title="Buka Daftar Isi"
+              aria-label="Buka Daftar Isi Novel"
             >
               <BookOpen className="w-4 h-4" />
               <span className="font-serif">Daftar Isi</span>
@@ -84,7 +85,8 @@ export const ReaderFooter: React.FC<ReaderFooterProps> = ({
                   color: isTTSActive ? 'var(--quote-accent)' : 'var(--text-secondary)',
                   backgroundColor: isTTSActive ? 'var(--accent-bg)' : 'transparent',
                 }}
-                title="Dengarkan Naskah (TTS)"
+                title={isTTSActive ? 'Tutup Pemutar Suara' : 'Dengarkan Naskah (TTS)'}
+                aria-label={isTTSActive ? 'Tutup pemutar suara naskah' : 'Dengarkan pembacaan naskah (suara narator)'}
               >
                 <Volume2 className={`w-4 h-4 ${isTTSActive ? 'animate-pulse' : ''}`} />
                 <span className="font-serif">Dengar</span>
@@ -100,6 +102,7 @@ export const ReaderFooter: React.FC<ReaderFooterProps> = ({
               className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg transition-colors hover:opacity-100 active:scale-95"
               style={{ color: 'var(--text-secondary)' }}
               title="Atur Ukuran Huruf, Tema & Tipografi"
+              aria-label="Buka pengaturan tampilan dan tipografi baca"
             >
               <Sliders className="w-4 h-4" />
               <span className="font-serif">Tampilan</span>
@@ -114,6 +117,7 @@ export const ReaderFooter: React.FC<ReaderFooterProps> = ({
                 backgroundColor: 'var(--badge-bg)',
               }}
               title="Kemajuan membaca bab saat ini"
+              aria-label={`Kemajuan membaca: ${Math.min(100, Math.max(0, scrollProgress))} persen`}
             >
               {Math.min(100, Math.max(0, scrollProgress))}%
             </span>
