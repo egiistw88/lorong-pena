@@ -7,15 +7,12 @@ import {
   Volume2,
   X,
   Sliders,
-  Download,
   Check,
   RefreshCw,
-  BookOpen,
   Feather,
   RotateCcw,
-  Headphones,
 } from 'lucide-react';
-import { TTSSettings, StorytellerMode, PiperModelState, UnitNarasi } from '../types';
+import { TTSSettings, StorytellerMode, UnitNarasi } from '../types';
 import { SentenceUnit } from '../lib/sentenceParser';
 import { DEFAULT_TTS_SETTINGS } from '../lib/storage';
 
@@ -30,7 +27,6 @@ interface TTSPlayerBarProps {
   isChapterEnded: boolean;
   settings: TTSSettings;
   availableVoices: SpeechSynthesisVoice[];
-  piperState: PiperModelState;
   onPlay: (index?: number) => void;
   onPause: () => void;
   onStop: () => void;
@@ -38,7 +34,6 @@ interface TTSPlayerBarProps {
   onPrev: () => void;
   onUpdateSettings: (settings: Partial<TTSSettings>) => void;
   onSetStorytellerMode?: (mode: StorytellerMode) => void;
-  onDownloadPiper: () => void;
   onNavigateToNextUnit?: () => void;
 }
 
@@ -53,7 +48,6 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
   isChapterEnded,
   settings,
   availableVoices,
-  piperState,
   onPlay,
   onPause,
   onStop,
@@ -61,7 +55,6 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
   onPrev,
   onUpdateSettings,
   onSetStorytellerMode,
-  onDownloadPiper,
   onNavigateToNextUnit,
 }) => {
   const [showOptions, setShowOptions] = useState(false);
@@ -514,7 +507,7 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
               </div>
 
               {/* Pilihan Karakter Suara Sistem (Jika ada suara Web Speech) */}
-              {settings.engine === 'web-speech' && availableVoices.length > 0 && (
+              {availableVoices.length > 0 && (
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     Pilihan Suara Sistem Perangkat
@@ -539,105 +532,6 @@ export const TTSPlayerBar: React.FC<TTSPlayerBarProps> = ({
                       );
                     })}
                   </select>
-                </div>
-              )}
-
-              {/* Penyedia Mesin Suara */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  Penyedia Mesin Suara
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    onClick={() => onUpdateSettings({ engine: 'web-speech' })}
-                    className="p-3 rounded-xl border text-left transition-all flex flex-col justify-between active:scale-98 cursor-pointer"
-                    style={{
-                      borderColor: settings.engine === 'web-speech' ? 'var(--accent-color)' : 'var(--border-subtle)',
-                      backgroundColor: settings.engine === 'web-speech' ? 'var(--accent-bg)' : 'var(--bg-surface)',
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-semibold text-xs">Suara Bawaan Perangkat</span>
-                      {settings.engine === 'web-speech' && (
-                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
-                      )}
-                    </div>
-                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                      Google WaveNet / Damayanti. Instan & didukung modulasi intonasi cerdas.
-                    </p>
-                  </button>
-
-                  <button
-                    onClick={() => onUpdateSettings({ engine: 'piper-neural' })}
-                    className="p-3 rounded-xl border text-left transition-all flex flex-col justify-between active:scale-98 cursor-pointer"
-                    style={{
-                      borderColor: settings.engine === 'piper-neural' ? 'var(--accent-color)' : 'var(--border-subtle)',
-                      backgroundColor: settings.engine === 'piper-neural' ? 'var(--accent-bg)' : 'var(--bg-surface)',
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Headphones className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
-                        <span className="font-semibold text-xs">Piper Neural (Offline)</span>
-                      </div>
-                      {settings.engine === 'piper-neural' && (
-                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
-                      )}
-                    </div>
-                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                      Model wicara lokal di peramban. Suara konsisten tanpa bergantung jaringan.
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Status Piper jika aktif */}
-              {settings.engine === 'piper-neural' && (
-                <div
-                  className="p-3 rounded-xl border"
-                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-xs">Model: id_ID-news_tts-medium</span>
-                      <span
-                        className="text-[10px] font-mono px-2 py-0.5 rounded shrink-0"
-                        style={{ backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)' }}
-                      >
-                        ~60MB
-                      </span>
-                    </div>
-                    {piperState.isDownloaded ? (
-                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 shrink-0">
-                        <Check className="w-3 h-3" /> Tersimpan Offline
-                      </span>
-                    ) : piperState.isDownloading ? (
-                      <span className="text-[11px] font-mono shrink-0" style={{ color: 'var(--accent-color)' }}>
-                        Mengunduh {piperState.downloadProgress}%...
-                      </span>
-                    ) : (
-                      <button
-                        onClick={onDownloadPiper}
-                        className="min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
-                        style={{ backgroundColor: 'var(--accent-color)', color: '#ffffff' }}
-                      >
-                        <Download className="w-3 h-3 shrink-0" />
-                        <span>Unduh Model Offline</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {piperState.isDownloading && (
-                    <div className="w-full h-1.5 bg-[var(--border-color)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full transition-all duration-300"
-                        style={{
-                          width: `${piperState.downloadProgress}%`,
-                          backgroundColor: 'var(--accent-color)',
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 

@@ -22,69 +22,76 @@ Aplikasi ini dirancang khusus sebagai wadah pembaca digital interaktif (*dedicat
 
 Aplikasi dibangun dengan prinsip **kenyamanan membaca jangka panjang** (*extended reading comfort*):
 
-- **🎨 4 Mode Tema Optik Khusus Buku**:
+- **🎨 3 Mode Tema Optik Khusus Buku**:
   - **Terang (Kertas Alami / Parchment)**: Kontras seimbang menyerupai kertas cetak berkualitas tinggi.
   - **Sepia Hangat**: Nuansa kuning-cokelat lembut yang mengurangi keletihan mata di sore atau senja hari.
   - **Gelap Lembut (Dark Slate)**: Skema gelap yang teduh dengan kontras rendah yang tidak menusuk mata.
-  - **Hitam Pekat (OLED Pure Black)**: Kontras maksimal dengan efisiensi daya optimal untuk layar AMOLED/OLED.
 - **🔤 Penyesuaian Tipografi & Geometri Baca**:
-  - Pilihan jenis huruf: Klasik Serif (*Merriweather / Georgia*) dan Modern Sans (*Plus Jakarta Sans*).
-  - Skala ukuran huruf: 14px hingga 26px dengan kendali granular.
-  - Spasi baris (*line-height*): 1.5, 1.7, hingga 2.0.
-  - Lebar kolom teks terukur (65–75 karakter per baris) untuk mencegah lelah mata akibat lompatan baris.
-  - Perataan teks: Rata Kiri (*Left Align*) atau Rata Kiri-Kanan (*Justify* dengan tanda hubung kata).
+  - Pilihan jenis huruf: Klasik Serif (*Literata*), Humanist Serif (*Source Serif 4*), dan Modern Sans (*Plus Jakarta Sans*).
+  - Skala ukuran huruf: 4 tingkat kenyamanan (*sm*, *md*, *lg*, *xl*).
+  - Spasi baris (*line-height*): Rapat (1.5), Nyaman (1.75), hingga Lapang (2.0).
+  - Lebar kolom teks terukur: Sedang (65–70 karakter per baris) dan Lebar (75–80 karakter).
+  - Mode irama animasi: Tenang (minim gerakan) atau Hidup (animasi transisi halus).
 - **🔊 Mesin Narasi Suara (Text-to-Speech / TTS)**:
-  - Pemutar audio terintegrasi berbasis Web Speech API lokal (bebas kuota internet).
-  - Deteksi otomatis suara Bahasa Indonesia berkualitas tinggi.
-  - Kendali laju baca (*speed rate* 0.75x – 1.75x) dan penanda posisi kalimat secara real-time.
+  - Pemutar audio terintegrasi berbasis Web Speech API bawaan perangkat/peramban.
+  - Pilihan karakter narasi sastra (*Hikayat*, *Renung*, dan *Wicara*).
+  - Irama napas alami antar-kalimat, alinea, dan pemisah adegan (`• • •`), serta modulasi dialog tokoh.
+  - Kendali tempo baca granular (0.75x – 1.3x) dan penanda posisi kalimat secara real-time.
 - **📑 Daftar Isi Lengkap & Struktur Kanon**:
   - Menampung seluruh kerangka kanon 5 Bagian dan 48 Bab + Prolog.
   - Indikator status bab yang sudah tuntas dibaca vs bab naskah aktif.
   - Navigasi cepat antar-bab dengan animasi transisi yang tenang.
 - **💾 Penyimpanan Status Otomatis (Local-First)**:
-  - Posisi bab terakhir, progres scroll, dan preferensi tipografi tersimpan otomatis di perangkat lokal pembaca tanpa perlu registrasi akun.
-- **📥 Manajemen & Pembaruan Naskah**:
-  - Modal manajemen naskah terstruktur untuk meninjau dan memperbarui isi bab kapan saja dari draf penulis asli.
+  - Posisi bab terakhir, progres baca, dan preferensi tipografi tersimpan otomatis di browser lokal pembaca tanpa perlu registrasi akun atau backend server.
+- **📥 Manajemen & Pratinjau Naskah**:
+  - Modal peninjauan draf naskah terstruktur untuk memeriksa struktur teks dan jumlah kata unit narasi.
 
 ---
 
 ## 🏗️ Struktur Proyek
 
 ```text
-├── .github/                 # Konfigurasi GitHub (Workflows CI, Template Issue & PR)
-├── docs/                    # Dokumentasi arsitektur & panduan teknis
-│   └── ARCHITECTURE.md      # Detail arsitektur komponen & aliran data
-├── public/                  # Berkas statis
-│   ├── cover.jpg            # Berkas sampul resmi novel "Yakin?"
-│   └── favicon.svg          # Favicon resmi
+├── .github/                     # Konfigurasi GitHub (Workflows CI, Template Issue & PR)
+├── docs/                        # Dokumentasi arsitektur & panduan teknis
+│   └── ARCHITECTURE.md          # Detail arsitektur komponen & aliran data
+├── public/                      # Berkas statis
+│   ├── cover.jpg                # Berkas sampul resmi novel "Yakin?"
+│   └── favicon.svg              # Favicon resmi
 ├── src/
-│   ├── components/          # Komponen antarmuka modular
-│   │   ├── Header.tsx       # Navigasi atas & status unit aktif
-│   │   ├── HomeView.tsx     # Beranda buku minimalis & aksi cepat
-│   │   ├── ReaderView.tsx   # Lembar baca utama (justifikasi, drop cap, margin)
-│   │   ├── ReaderFooter.tsx # Footer mengambang mode baca (auto-hide)
-│   │   ├── SettingsDrawer.tsx # Pengaturan tema, tipografi, & tata letak
-│   │   ├── TableOfContentsModal.tsx # Daftar isi kanon 5 bagian
-│   │   ├── TTSPlayer.tsx    # Pemutar audio Text-to-Speech terintegrasi
-│   │   └── ManuscriptImportModal.tsx # Manajemen draf naskah
-│   ├── content/             # Sumber naskah kanon & metadata
-│   │   ├── meta.ts          # Metadata judul, pengarang, imprint, & daftar bagian
-│   │   └── units.ts         # Data teks lengkap Prolog & Bab-Bab Bagian I
-│   ├── hooks/               # Custom React hooks
-│   │   ├── useLocalStorage.ts # Sinkronisasi state ke Web Storage
-│   │   ├── useReadingProgress.ts # Kalkulasi progres baca per unit
-│   │   └── useScrollDirection.ts # Deteksi arah scroll untuk auto-hide navigasi
-│   ├── lib/                 # Fungsi utilitas
-│   │   └── readingTime.ts   # Estimasi waktu baca berbasis jumlah kata
-│   ├── types.ts             # Definisi tipe data TypeScript
-│   ├── App.tsx              # Komponen orkestrasi utama
-│   ├── main.tsx             # Titik masuk aplikasi (DOM Mount)
-│   └── index.css            # Token desain Tailwind CSS & variabel tema optik
-├── index.html               # Entry point HTML dengan metadata OpenGraph lengkap
-├── metadata.json            # Metadata konfigurasi sistem aplikasi
-├── package.json             # Manifest dependensi & skrip proyek
-├── tsconfig.json            # Konfigurasi kompilator TypeScript
-└── vite.config.ts           # Konfigurasi bundler Vite
+│   ├── components/              # Komponen antarmuka modular
+│   │   ├── ChapterOrnamentDivider.tsx # Ornamen pembuka bab & pembatas naskah
+│   │   ├── Header.tsx           # Navigasi atas & status unit aktif
+│   │   ├── HomeView.tsx         # Beranda buku minimalis & aksi cepat baca
+│   │   ├── IlluminatedDropCap.tsx # Drop cap klasik awal bab
+│   │   ├── ManuscriptImportModal.tsx # Alat pratinjau struktur & draf naskah
+│   │   ├── ReaderFooter.tsx     # Footer navigasi bab bawah
+│   │   ├── ReaderView.tsx       # Lembar baca utama naskah
+│   │   ├── SceneBreak.tsx       # Pemisah adegan sastra ('• • •')
+│   │   ├── ScrollParagraph.tsx  # Paragraf naskah dengan penanda kalimat aktif
+│   │   ├── SettingsDrawer.tsx   # Panel laci pengaturan tema & tipografi
+│   │   ├── TableOfContentsModal.tsx # Modal daftar isi kanon 5 Bagian
+│   │   └── TTSPlayerBar.tsx     # Bilah kontrol pemutar suara Text-to-Speech
+│   ├── content/                 # Sumber naskah kanon & metadata
+│   │   ├── meta.ts              # Metadata novel, pengarang, & rencana 5 Bagian
+│   │   └── units/               # Berkas naskah kanon terpisah per-bab
+│   │       ├── prolog.ts        # Teks naskah Prolog
+│   │       ├── bab-1-1.ts       # Teks naskah Bab I.1
+│   │       ├── ...              # Teks naskah Bab I.2 – Bab I.7
+│   │       └── index.ts         # Agregator koleksi unit narasi
+│   ├── lib/                     # Logika bisnis, parser, & penyimpanan
+│   │   ├── readingTime.ts       # Kalkulasi estimasi durasi baca berbasis kata
+│   │   ├── sentenceParser.ts    # Parser kalimat, dialog, dan jeda tanda baca
+│   │   ├── storage.ts           # Abstraksi localStorage untuk preferensi & progres
+│   │   └── useTTSPlayer.ts      # Custom hook pengelola mesin suara Web Speech
+│   ├── types.ts                 # Definisi tipe data TypeScript kanon
+│   ├── App.tsx                  # Orkestrator status aplikasi & tampilan
+│   ├── main.tsx                 # Titik masuk aplikasi (DOM Mount)
+│   └── index.css                # Konfigurasi Tailwind CSS v4 & variabel tema optik
+├── index.html                   # Entry point HTML dengan metadata OpenGraph
+├── metadata.json                # Metadata konfigurasi sistem AI Studio
+├── package.json                 # Manifest dependensi & skrip proyek
+├── tsconfig.json                # Konfigurasi kompilator TypeScript
+└── vite.config.ts               # Konfigurasi bundler Vite
 ```
 
 ---
@@ -131,7 +138,7 @@ Pastikan lingkungan Anda telah terpasang:
 
 ## 🔒 Kebijakan Integritas Naskah
 
-1. **Larangan Modifikasi Isi Cerita**: Seluruh teks naskah novel yang tersimpan di dalam berkas `src/content/units.ts` merupakan karya orisinal dari **Eugui Sett**. Kontributor teknis dilarang mengubah, memparafrasekan, menyingkat, atau menambahkan kalimat cerita fiksi tanpa mandat tertulis dari penulis.
+1. **Larangan Modifikasi Isi Cerita**: Seluruh teks naskah novel yang tersimpan di dalam berkas `src/content/units/*.ts` merupakan karya orisinal dari **Eugui Sett**. Kontributor teknis dilarang mengubah, memparafrasekan, menyingkat, atau menambahkan kalimat cerita fiksi tanpa mandat tertulis dari penulis.
 2. **Pemisahan Logika & Konten**: Logika antarmuka (*UI logic*) dipisahkan secara ketat dari konten naskah narasi (*narrative content*), sehingga pembaruan fitur teknis tidak akan pernah merusak keutuhan teks asli.
 
 ---

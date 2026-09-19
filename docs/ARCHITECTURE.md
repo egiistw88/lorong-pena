@@ -14,12 +14,12 @@ Aplikasi dirancang sebagai *Single Page Application (SPA)* berbasis React 19, Ty
 ```text
 [ Berkas Naskah Asli ]
          ↓
- [ src/content/units.ts ] ← [ src/content/meta.ts ]
+ [ src/content/units/*.ts ] ← [ src/content/meta.ts ]
          ↓
  [ App.tsx (Orkestrator Status) ]
-   ├── [ useLocalStorage (Preferensi & Progres) ]
-   ├── [ useReadingProgress (Hitung Persentase) ]
-   └── [ useScrollDirection (Navigasi Mengambang) ]
+   ├── [ src/lib/storage.ts (Preferensi & Progres localStorage) ]
+   ├── [ src/lib/readingTime.ts (Hitung Durasi Baca) ]
+   └── [ src/lib/useTTSPlayer.ts (Mesin Narasi Web Speech) ]
          ↓
  ┌───────────────────────┬────────────────────────┐
  │   Mode Beranda        │      Mode Membaca      │
@@ -31,8 +31,8 @@ Aplikasi dirancang sebagai *Single Page Application (SPA)* berbasis React 19, Ty
  │ - Header.tsx (Indikator Bab & Navigasi)        │
  │ - TableOfContentsModal.tsx (Daftar Isi Kanon)  │
  │ - SettingsDrawer.tsx (Tipografi & Tema Optik)  │
- │ - TTSPlayer.tsx (Mesin Narasi Web Speech API)  │
- │ - ManuscriptImportModal.tsx (Sinkronisasi Draf)│
+ │ - TTSPlayerBar.tsx (Bilah Pemutar Suara TTS)   │
+ │ - ManuscriptImportModal.tsx (Pratinjau Draf)   │
  └────────────────────────────────────────────────┘
 ```
 
@@ -44,21 +44,24 @@ Definisi model data utama berada di `src/types.ts`:
 
 ### 1. `UnitNarasi`
 Mewakili satu unit bacaan (Prolog atau Bab tertentu):
-- `id`: Pengenal unik (misal: `'prolog'`, `'bab-1'`).
+- `id`: Pengenal unik (misal: `'prolog'`, `'bab-1-1'`).
 - `bagian`: Nomor Bagian buku (0 untuk Prolog, 1 untuk Bagian I, dst.).
+- `urutan_dalam_bagian`: Urutan di dalam bagian terkait.
+- `urutan_global`: Urutan global (1-indexed).
 - `nomor`: Penomoran bab (misal: `'Prolog'`, `'I.1'`, `'I.2'`).
 - `judul`: Judul bab resmi.
-- `isi_teks`: Teks naskah lengkap dalam format paragraf terpisah (`\n\n`).
+- `status`: `'draft' | 'direvisi' | 'final'`.
 - `jumlah_kata`: Jumlah kata aktual untuk penghitungan estimasi waktu baca.
-- `catatan_kaki`: Daftar catatan penjelasan kaki opsional (`Footnote[]`).
+- `adegan`: Kumpulan adegan (`Adegan[]`), tiap adegan berisi daftar paragraf.
 
-### 2. `ReaderPreferences`
+### 2. `ReaderSettings`
 Mewakili preferensi visual pembaca:
-- `theme`: `'light' | 'sepia' | 'dark' | 'black'`
-- `fontSize`: Skala ukuran huruf (14px – 26px, default: 18px).
-- `lineHeight`: Jarak spasi antar-baris (1.5, 1.7, atau 2.0).
-- `fontFamily`: `'serif' | 'sans'`
-- `textAlign`: `'left' | 'justify'`
+- `theme`: `'terang' | 'gelap' | 'sephia'`
+- `fontFamily`: `'literata' | 'source-serif' | 'sans'`
+- `fontSize`: `'sm' | 'md' | 'lg' | 'xl'`
+- `lineHeight`: `'rapat' | 'nyaman' | 'lapang'`
+- `columnWidth`: `'sedang' | 'lebar'`
+- `modeAnimasi`: `'tenang' | 'hidup'`
 
 ---
 
@@ -66,20 +69,20 @@ Mewakili preferensi visual pembaca:
 
 Tema optik dikelola murni menggunakan variabel CSS native di `src/index.css` yang diaktifkan melalui atribut `data-theme` pada elemen `<html>`:
 
-| Token CSS | Terang (Parchment) | Sepia Hangat | Gelap Lembut | Hitam Pekat (OLED) |
-|---|---|---|---|---|
-| `--bg-page` | `#FBF9F5` | `#F4ECD8` | `#1A1B1E` | `#000000` |
-| `--bg-panel` | `#FFFFFF` | `#EFE4CD` | `#24262B` | `#0D0E11` |
-| `--text-primary` | `#1C1917` | `#3D2B1F` | `#E4E4E7` | `#EEEEEE` |
-| `--text-secondary` | `#57534E` | `#6E5D4F` | `#A1A1AA` | `#A0A0A0` |
-| `--accent-color` | `#96572A` | `#8C4B1E` | `#D97736` | `#D97736` |
-| `--quote-accent` | `#B45309` | `#92400E` | `#F59E0B` | `#F59E0B` |
+| Token CSS | Terang (Parchment) | Sepia Hangat | Gelap Lembut |
+|---|---|---|---|
+| `--bg-page` | `#FBF9F5` | `#F4ECD8` | `#1A1B1E` |
+| `--bg-panel` | `#FFFFFF` | `#EFE4CD` | `#24262B` |
+| `--text-primary` | `#1C1917` | `#3D2B1F` | `#E4E4E7` |
+| `--text-secondary` | `#57534E` | `#6E5D4F` | `#A1A1AA` |
+| `--accent-color` | `#96572A` | `#8C4B1E` | `#D97736` |
+| `--quote-accent` | `#B45309` | `#92400E` | `#F59E0B` |
 
 ---
 
 ## 🔊 Mesin Suara (Text-to-Speech Architecture)
 
-Komponen `TTSPlayer.tsx` memanfaatkan `window.speechSynthesis` tanpa dependensi pihak ketiga:
-- **Segmentasi Kalimat**: Teks naskah dipecah menjadi unit-unit kalimat logis menggunakan tanda baca (`.`, `!`, `?`).
-- **Pembersihan Teks**: Karakter format non-alfanumerik (seperti tanda pemisah adegan `* * *`) dilewati agar pelafalan suara terdengar alami.
-- **Deteksi Suara Bahasa**: Memfilter suara berlabel `id-ID` atau `id` dari daftar suara sistem operasi pengguna secara dinamis.
+Komponen `TTSPlayerBar.tsx` dan hook `src/lib/useTTSPlayer.ts` memanfaatkan `window.speechSynthesis` tanpa dependensi pihak ketiga:
+- **Segmentasi Kalimat & Prosodi (`sentenceParser.ts`)**: Teks naskah diparsing menjadi unit kalimat lengkap dengan atribut tanda baca penutup, deteksi dialog tokoh, penanda akhir alinea, dan pemisah adegan (`• • •`).
+- **Pembersihan Teks Suara**: Tanda baca penanda kutip dialog atau simbol sastra dibersihkan secara fonetik agar lafal suara terdengar wajar dan tidak mengeja tanda baca secara literal.
+- **Deteksi Suara Bahasa**: Memfilter suara berlabel `id-ID` atau `id` dari daftar suara sistem operasi pengguna secara dinamis dan memprioritaskan profil suara natural/WaveNet.

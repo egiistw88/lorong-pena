@@ -76,7 +76,7 @@ export interface ReadingProgress {
   scrollPercentage: number;
 }
 
-export type TTSEngine = 'web-speech' | 'piper-neural';
+export type TTSEngine = 'web-speech';
 
 export type StorytellerMode = 'hikayat' | 'renung' | 'wajar';
 
@@ -89,12 +89,5 @@ export interface TTSSettings {
   autoScroll: boolean; // scroll otomatis mengikuti kalimat aktif
   naturalPauses: boolean; // jeda napas alami antar-kalimat, paragraf & adegan
   dialogueModulation: boolean; // modulasi intonasi halus untuk dialog tokoh
-}
-
-export interface PiperModelState {
-  isDownloaded: boolean;
-  isDownloading: boolean;
-  downloadProgress: number; // 0 - 100
-  error?: string;
 }
 

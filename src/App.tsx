@@ -224,7 +224,6 @@ export default function App() {
           isChapterEnded={tts.isChapterEnded}
           settings={tts.settings}
           availableVoices={tts.availableVoices}
-          piperState={tts.piperState}
           onPlay={tts.play}
           onPause={tts.pause}
           onStop={() => {
@@ -235,7 +234,6 @@ export default function App() {
           onPrev={tts.prevSentence}
           onUpdateSettings={tts.updateSettings}
           onSetStorytellerMode={tts.setStorytellerMode}
-          onDownloadPiper={tts.downloadPiperModel}
           onNavigateToNextUnit={() => {
             if (nextUnit) {
               handleNavigateToUnit(nextUnit.id);

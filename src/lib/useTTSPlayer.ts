@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SentenceUnit } from './sentenceParser';
-import { TTSSettings, TTSEngine, StorytellerMode, PiperModelState } from '../types';
+import { TTSSettings, StorytellerMode } from '../types';
 import { loadTTSSettings, saveTTSSettings } from './storage';
 
 export interface UseTTSPlayerProps {
@@ -23,18 +23,6 @@ export function useTTSPlayer({
   const [activeSentenceId, setActiveSentenceId] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isChapterEnded, setIsChapterEnded] = useState(false);
-
-  // Piper Neural State
-  const [piperState, setPiperState] = useState<PiperModelState>(() => {
-    const isDownloaded =
-      typeof localStorage !== 'undefined' &&
-      localStorage.getItem('lorong_pena_piper_downloaded') === 'true';
-    return {
-      isDownloaded,
-      isDownloading: false,
-      downloadProgress: isDownloaded ? 100 : 0,
-    };
-  });
 
   // Refs to avoid stale closures in Web Speech callbacks
   const isPlayingRef = useRef(isPlaying);
@@ -373,33 +361,6 @@ export function useTTSPlayer({
     [updateSettings]
   );
 
-  // Piper Model Download Simulator
-  const downloadPiperModel = useCallback(() => {
-    if (piperState.isDownloaded || piperState.isDownloading) return;
-
-    setPiperState((prev) => ({ ...prev, isDownloading: true, downloadProgress: 10, error: undefined }));
-
-    let progress = 10;
-    const interval = setInterval(() => {
-      progress += 20;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setPiperState({
-          isDownloaded: true,
-          isDownloading: false,
-          downloadProgress: 100,
-        });
-        try {
-          localStorage.setItem('lorong_pena_piper_downloaded', 'true');
-        } catch {
-          // ignore
-        }
-      } else {
-        setPiperState((prev) => ({ ...prev, downloadProgress: progress }));
-      }
-    }, 400);
-  }, [piperState.isDownloaded, piperState.isDownloading]);
-
   // Clean up on unmount
   useEffect(() => {
     return () => {
@@ -420,7 +381,6 @@ export function useTTSPlayer({
     isChapterEnded,
     settings,
     availableVoices,
-    piperState,
     play,
     pause,
     stop,
@@ -429,6 +389,5 @@ export function useTTSPlayer({
     playSentenceById,
     updateSettings,
     setStorytellerMode,
-    downloadPiperModel,
   };
 }
