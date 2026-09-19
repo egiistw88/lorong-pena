@@ -1,0 +1,7 @@
+{
+  "name": "Yakin? — Perjalanan Hidup Zayd",
+  "description": "Naskah novel karya Eugui Sett (Bandung): Yakin? — Perjalanan Hidup Zayd. Pengalaman membaca interaktif yang tenang, elegan, dan minim distraksi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -1,0 +1,203 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-literata: 'Literata', Georgia, Cambria, serif;
+    --font-source-serif: 'Source Serif 4', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Tema Terang */
+  .theme-terang {
+    --bg-page: #faf8f5;
+    --bg-surface: #f3efe8;
+    --bg-panel: #ffffff;
+    --text-primary: #201e1c;
+    --text-secondary: #6e6760;
+    --text-tertiary: #9c948b;
+    --border-color: #e5dfd5;
+    --border-subtle: #eeeae3;
+    --accent-color: #78350f;
+    --quote-accent: #854d0e;
+    --accent-bg: #fef3c7;
+    --badge-bg: #ede7dc;
+    --badge-text: #59524a;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+
+  /* Tema Sephia (Kertas Tua) */
+  .theme-sephia {
+    --bg-page: #f4eee2;
+    --bg-surface: #ebd9c5;
+    --bg-panel: #fdfaf4;
+    --text-primary: #382d22;
+    --text-secondary: #746351;
+    --text-tertiary: #9b8874;
+    --border-color: #ded0bc;
+    --border-subtle: #e8ded0;
+    --accent-color: #854d0e;
+    --quote-accent: #78350f;
+    --accent-bg: #fae8b4;
+    --badge-bg: #e6dac6;
+    --badge-text: #544434;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+
+  /* Tema Gelap */
+  .theme-gelap {
+    --bg-page: #151413;
+    --bg-surface: #211f1d;
+    --bg-panel: #1a1918;
+    --text-primary: #ded9d1;
+    --text-secondary: #9c958b;
+    --text-tertiary: #6b665f;
+    --border-color: #2e2b27;
+    --border-subtle: #23211f;
+    --accent-color: #f59e0b;
+    --quote-accent: #f59e0b;
+    --accent-bg: #292524;
+    --badge-bg: #272523;
+    --badge-text: #b5ada3;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+}
+
+/* Tipografi Buku Cetak */
+.novel-body {
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Tanda kutip dialog: hanya tanda kutip yang diberi warna aksen buku, bukan seluruh teks */
+.dialogue-quote-mark {
+  color: var(--quote-accent);
+  font-weight: 500;
+  display: inline;
+}
+
+.novel-body p {
+  text-indent: 1.25em;
+  margin-bottom: 0;
+  text-align: left;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  word-break: break-word;
+}
+
+@media (min-width: 640px) {
+  .novel-body p {
+    text-indent: 1.75em;
+    text-align: justify;
+  }
+}
+
+/* Paragraf pertama setelah judul bab atau pembatas adegan tidak diindentasi (tradisi novel cetak) */
+.novel-body p.no-indent,
+.novel-body .adegan-first-p {
+  text-indent: 0 !important;
+}
+
+/* Dialog yang diawali tanda kutip ganda atau petik */
+.novel-body p.dialog {
+  text-indent: 0;
+  padding-left: 0.15em;
+}
+
+@media (min-width: 640px) {
+  .novel-body p.dialog {
+    padding-left: 0.25em;
+  }
+}
+
+/* Optimasi Sentuhan Mobile Web App */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbar halus */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color, #d1cdc7);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary, #9c948b);
+}
+
+/* Animasi Halus Sesuai PRD & Arahan Pak Egi */
+/* 1. Transisi Masuk Bab: fade + pergeseran vertikal kecil (8-12px), 250ms */
+.chapter-enter-animation {
+  animation: chapterEnter 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes chapterEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 2. Drop cap kaligrafi / manuskrip Abbasiyah: sapuan tinta stroke-draw ~400-550ms */
+.dropcap-stroke-frame {
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+  animation: dropCapStrokeDraw 550ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.dropcap-stroke-accent {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: dropCapStrokeDraw 450ms ease-out 100ms forwards;
+}
+
+.dropcap-letter {
+  opacity: 0;
+  animation: dropCapFadeIn 350ms ease-out 150ms forwards;
+}
+
+@keyframes dropCapStrokeDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes dropCapFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Smooth transitions yang tenang */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  .chapter-enter-animation,
+  .dropcap-stroke-frame,
+  .dropcap-stroke-accent,
+  .dropcap-letter {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    stroke-dashoffset: 0 !important;
+    opacity: 1 !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}
