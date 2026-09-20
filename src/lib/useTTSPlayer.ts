@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SentenceUnit } from './sentenceParser';
-import { TTSSettings, StorytellerMode } from '../types';
+import { TTSSettings, StorytellerMode, AudioSourceType, GeminiVoiceId } from '../types';
 import { loadTTSSettings, saveTTSSettings } from './storage';
 
 export interface UseTTSPlayerProps {
@@ -8,6 +8,42 @@ export interface UseTTSPlayerProps {
   sentences: SentenceUnit[];
   onChapterCompleted?: () => void;
   onNavigateToNextUnit?: () => void;
+}
+
+// Client-side in-memory cache untuk audio blob URLs (Zero-latency replay & prefetch)
+const clientAudioCache = new Map<string, string>();
+const MAX_CLIENT_CACHE = 60;
+
+function storeClientAudio(key: string, url: string) {
+  if (clientAudioCache.size >= MAX_CLIENT_CACHE) {
+    const firstEntry = clientAudioCache.entries().next().value;
+    if (firstEntry) {
+      const [oldKey, oldUrl] = firstEntry;
+      try {
+        URL.revokeObjectURL(oldUrl);
+      } catch {
+        // ignore
+      }
+      clientAudioCache.delete(oldKey);
+    }
+  }
+  clientAudioCache.set(key, url);
+}
+
+export function clearAllClientAudioCache() {
+  for (const [, url] of clientAudioCache) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  }
+  clientAudioCache.clear();
+}
+
+function getClientCacheKey(text: string, voice: string, rate: number): string {
+  // Normalisasi teks untuk key cache agar spasi berlebih tidak membuat duplikat
+  return `${voice}_${rate.toFixed(2)}_${text.trim().replace(/\s+/g, ' ')}`;
 }
 
 export function useTTSPlayer({
@@ -19,12 +55,16 @@ export function useTTSPlayer({
   const [settings, setSettings] = useState<TTSSettings>(loadTTSSettings);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSentenceId, setActiveSentenceId] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isChapterEnded, setIsChapterEnded] = useState(false);
+  const [audioSource, setAudioSource] = useState<AudioSourceType>('gemini-server');
+  const [hasStudioAudio, setHasStudioAudio] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Refs to avoid stale closures in Web Speech callbacks
+  // Synchronized state refs (Mencegah stale closures)
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
@@ -37,45 +77,72 @@ export function useTTSPlayer({
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Audio lifecycle & anti-overlap refs
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackTokenRef = useRef<number>(0);
   const pauseTimerRef = useRef<number | null>(null);
+  const prefetchingSetRef = useRef<Set<string>>(new Set());
+  const activeAbortControllerRef = useRef<AbortController | null>(null);
+  const isQuotaExceededRef = useRef<boolean>(false);
 
-  const clearPauseTimer = () => {
+  // Bersihkan timer jeda antar kalimat
+  const clearPauseTimer = useCallback(() => {
     if (pauseTimerRef.current !== null) {
       window.clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = null;
     }
-  };
+  }, []);
 
-  // Load available system voices with priority sorting
+  /**
+   * STOP TOTAL SEMUA SUARA (Anti-Echo / Anti-Overlap Absolute Guarantee)
+   * Menghentikan audio element persisten, membatalkan request fetch, dan WebSpeech.
+   */
+  const stopAllAudio = useCallback(() => {
+    // 1. Increment sequence token agar callback async lama langsung gugur
+    playbackTokenRef.current += 1;
+
+    // 2. Bersihkan jeda timer
+    clearPauseTimer();
+
+    // 3. Batalkan fetch audio yang sedang terbang
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort();
+      activeAbortControllerRef.current = null;
+    }
+
+    // 4. Hentikan pemutaran audio element tunggal
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onplay = null;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+    }
+
+    // 5. Batalkan Web Speech Synthesis jika sempat menyala
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setIsLoadingAudio(false);
+  }, [clearPauseTimer]);
+
+  // Muat daftar suara peramban (untuk fallback jika offline)
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
     const updateVoices = () => {
       const allVoices = window.speechSynthesis.getVoices();
-      // Filter suara bahasa Indonesia atau suara multilingual
       const idVoices = allVoices.filter(
         (v) =>
           v.lang.toLowerCase().startsWith('id') ||
           v.name.toLowerCase().includes('indonesia') ||
           v.name.toLowerCase().includes('bahasa')
       );
-
-      // Urutkan suara: utamakan Natural / WaveNet / Online / Google / Damayanti / Enhanced
-      idVoices.sort((a, b) => {
-        const isPremiumA = /natural|wavenet|online|google|damayanti|enhanced|premium/i.test(a.name);
-        const isPremiumB = /natural|wavenet|online|google|damayanti|enhanced|premium/i.test(b.name);
-        if (isPremiumA && !isPremiumB) return -1;
-        if (!isPremiumA && isPremiumB) return 1;
-        return a.name.localeCompare(b.name);
-      });
-
       setAvailableVoices(idVoices.length > 0 ? idVoices : allVoices);
     };
-
     updateVoices();
     window.speechSynthesis.onvoiceschanged = updateVoices;
-
     return () => {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = null;
@@ -83,94 +150,180 @@ export function useTTSPlayer({
     };
   }, []);
 
-  // Reset or pause player when unitId changes
+  // Reset bersih saat bab berganti
   useEffect(() => {
-    clearPauseTimer();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllAudio();
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentIndex(0);
     setActiveSentenceId(null);
     setIsChapterEnded(false);
-  }, [unitId]);
+    setErrorMessage(null);
+  }, [unitId, stopAllAudio]);
 
-  // Handle auto-scroll to active sentence
+  // Penyelarasan Gulir Layar Lembut (Hanya bergulir halus bila kalimat di luar safe-zone)
   useEffect(() => {
     if (!settings.autoScroll || !activeSentenceId) return;
 
     const element = document.getElementById(activeSentenceId);
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      const isVisible = rect.top >= 100 && rect.bottom <= window.innerHeight - 180;
-      if (!isVisible) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    const topSafeZone = 140; // Di bawah bilah header
+    const bottomSafeZone = window.innerHeight - 190; // Di atas player bar
+
+    if (rect.top < topSafeZone || rect.bottom > bottomSafeZone) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
     }
   }, [activeSentenceId, settings.autoScroll]);
 
-  // Core speak sentence function with Storyteller Prosody Engine
-  const speakSentenceAtIndex = useCallback(
-    (index: number) => {
-      clearPauseTimer();
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  // Kalkulasi jeda napas sastra yang alami dan tidak canggung
+  const calculatePauseDuration = useCallback((sentence: SentenceUnit): number => {
+    if (!settingsRef.current.naturalPauses) return 80;
+    const mode = settingsRef.current.mode;
+    const multiplier = mode === 'renung' ? 1.25 : mode === 'wajar' ? 0.75 : 1.0;
 
-      const currentSentences = sentencesRef.current;
-      if (index < 0 || index >= currentSentences.length) {
-        // Akhir dari bab tercapai
-        setIsPlaying(false);
-        setIsPaused(false);
-        setActiveSentenceId(null);
-        setIsChapterEnded(true);
-        if (onChapterCompleted) {
-          onChapterCompleted();
-        }
+    if (sentence.isSceneEnd) {
+      // Jeda hening sebelum adegan baru (• • •)
+      return Math.round(950 * multiplier);
+    } else if (sentence.isParagraphEnd) {
+      // Jeda pergantian paragraf alinea naskah
+      return Math.round(450 * multiplier);
+    } else {
+      const trimmed = sentence.text.trim();
+      if (trimmed.endsWith('...') || trimmed.endsWith('…')) {
+        return Math.round(380 * multiplier);
+      } else if (trimmed.endsWith('?') || trimmed.endsWith('!')) {
+        return Math.round(280 * multiplier);
+      }
+      return Math.round(180 * multiplier);
+    }
+  }, []);
+
+  /**
+   * Cerdas: Prefetch 1 kalimat ke depan di background
+   * Memastikan kelancaran transisi tanpa membebani kuota API berlebih.
+   */
+  const prefetchSentenceAudio = useCallback(async (index: number) => {
+    if (isQuotaExceededRef.current) return;
+    const list = sentencesRef.current;
+    if (index < 0 || index >= list.length) return;
+
+    const target = list[index];
+    const textToSpeak = target.cleanSpokenText || target.text;
+    const voice = settingsRef.current.geminiVoice || 'Charon';
+    const rate = settingsRef.current.rate || 1.0;
+    const cacheKey = getClientCacheKey(textToSpeak, voice, rate);
+
+    if (clientAudioCache.has(cacheKey) || prefetchingSetRef.current.has(cacheKey)) {
+      return;
+    }
+
+    prefetchingSetRef.current.add(cacheKey);
+
+    try {
+      const res = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToSpeak,
+          voice,
+          rate,
+          isDialogue: target.isDialogue,
+        }),
+      });
+
+      if (res.status === 429) {
+        isQuotaExceededRef.current = true;
         return;
       }
 
-      window.speechSynthesis.cancel();
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        storeClientAudio(cacheKey, url);
+      }
+    } catch {
+      // Prefetch gagal di background tidak merusak audio saat ini
+    } finally {
+      prefetchingSetRef.current.delete(cacheKey);
+    }
+  }, []);
 
-      const sentence = currentSentences[index];
-      setCurrentIndex(index);
-      setActiveSentenceId(sentence.id);
-      setIsChapterEnded(false);
+  // Ambil Audio Blob URL (Cache-first)
+  const fetchAudioBlobUrl = useCallback(
+    async (sentence: SentenceUnit, signal: AbortSignal): Promise<string> => {
+      const textToSpeak = sentence.cleanSpokenText || sentence.text;
+      const voice = settingsRef.current.geminiVoice || 'Charon';
+      const rate = settingsRef.current.rate || 1.0;
+      const cacheKey = getClientCacheKey(textToSpeak, voice, rate);
 
-      // Gunakan cleanSpokenText agar mesin tidak melafalkan tanda baca secara harfiah
+      if (clientAudioCache.has(cacheKey)) {
+        return clientAudioCache.get(cacheKey)!;
+      }
+
+      if (isQuotaExceededRef.current) {
+        throw new Error('QUOTA_EXCEEDED');
+      }
+
+      const res = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToSpeak,
+          voice,
+          rate,
+          isDialogue: sentence.isDialogue,
+        }),
+        signal,
+      });
+
+      if (res.status === 429) {
+        isQuotaExceededRef.current = true;
+        throw new Error('QUOTA_EXCEEDED');
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server status ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      storeClientAudio(cacheKey, url);
+      return url;
+    },
+    []
+  );
+
+  // Fallback lokal jika Gemini Server API tidak tersedia
+  const fallbackWebSpeech = useCallback(
+    (index: number, sentence: SentenceUnit, currentSentences: SentenceUnit[]) => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        setIsLoadingAudio(false);
+        setIsPlaying(false);
+        return;
+      }
+
+      setAudioSource('web-speech');
+      setIsLoadingAudio(false);
       const textToSpeak = sentence.cleanSpokenText || sentence.text;
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utteranceRef.current = utterance;
 
-      // Konfigurasi dasar tempo dan nada
-      const baseRate = settingsRef.current.rate;
-      const basePitch = settingsRef.current.pitch;
-
-      let targetRate = baseRate;
-      let targetPitch = basePitch;
-
-      // Modulasi intonasi narator: dialog tokoh dibuat sedikit lebih hidup
-      if (sentence.isDialogue && settingsRef.current.dialogueModulation) {
-        targetPitch = Math.min(1.15, basePitch * 1.04);
-        targetRate = Math.min(1.15, baseRate * 1.02);
-      }
-
-      utterance.rate = targetRate;
-      utterance.pitch = targetPitch;
+      utterance.rate = settingsRef.current.rate || 1.0;
+      utterance.pitch = settingsRef.current.pitch || 1.0;
       utterance.lang = 'id-ID';
 
-      // Pilih suara bahasa Indonesia jika tersedia
       const voices = window.speechSynthesis.getVoices();
-      if (settingsRef.current.voiceURI) {
-        const selected = voices.find((v) => v.voiceURI === settingsRef.current.voiceURI);
-        if (selected) utterance.voice = selected;
-      } else {
-        const defaultIdVoice = voices.find(
-          (v) =>
-            v.lang.toLowerCase().startsWith('id') ||
-            v.name.toLowerCase().includes('indonesia')
-        );
-        if (defaultIdVoice) utterance.voice = defaultIdVoice;
-      }
+      const idVoice = voices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith('id') ||
+          v.name.toLowerCase().includes('indonesia')
+      );
+      if (idVoice) utterance.voice = idVoice;
 
       utterance.onstart = () => {
         setIsPlaying(true);
@@ -178,63 +331,161 @@ export function useTTSPlayer({
       };
 
       utterance.onend = () => {
-        if (isPlayingRef.current) {
-          const nextIndex = index + 1;
-          if (nextIndex < currentSentences.length) {
-            // Hitung jeda napas cerdas khas pendongeng
-            let pauseDuration = 140; // standar minimal
-
-            if (settingsRef.current.naturalPauses) {
-              const mode = settingsRef.current.mode;
-              const multiplier = mode === 'renung' ? 1.35 : mode === 'wajar' ? 0.75 : 1.0;
-
-              if (sentence.isSceneEnd) {
-                // Jeda hening yang luas sebelum adegan baru (• • •)
-                pauseDuration = Math.round(1800 * multiplier);
-              } else if (sentence.isParagraphEnd) {
-                // Jeda napas pergantian alinea narasi
-                pauseDuration = Math.round(920 * multiplier);
-              } else {
-                const trimmed = sentence.text.trim();
-                if (trimmed.endsWith('...') || trimmed.endsWith('…') || trimmed.endsWith('...”') || trimmed.endsWith('..."')) {
-                  pauseDuration = Math.round(800 * multiplier);
-                } else if (trimmed.endsWith('?') || trimmed.endsWith('?”') || trimmed.endsWith('?"')) {
-                  pauseDuration = Math.round(620 * multiplier);
-                } else if (trimmed.endsWith('!') || trimmed.endsWith('!”') || trimmed.endsWith('!"')) {
-                  pauseDuration = Math.round(580 * multiplier);
-                } else {
-                  pauseDuration = Math.round(460 * multiplier);
-                }
-              }
+        if (!isPlayingRef.current) return;
+        const nextIndex = index + 1;
+        if (nextIndex < currentSentences.length) {
+          const pauseMs = calculatePauseDuration(sentence);
+          pauseTimerRef.current = window.setTimeout(() => {
+            if (isPlayingRef.current) {
+              speakSentenceAtIndex(nextIndex);
             }
-
-            pauseTimerRef.current = window.setTimeout(() => {
-              if (isPlayingRef.current) {
-                speakSentenceAtIndex(nextIndex);
-              }
-            }, pauseDuration);
-          } else {
-            // Bab selesai! Jeda otomatis di ujung bab (prinsip PRD)
-            setIsPlaying(false);
-            setIsPaused(false);
-            setActiveSentenceId(null);
-            setIsChapterEnded(true);
-            if (onChapterCompleted) {
-              onChapterCompleted();
-            }
-          }
+          }, pauseMs);
+        } else {
+          setIsPlaying(false);
+          setIsPaused(false);
+          setActiveSentenceId(null);
+          setIsChapterEnded(true);
+          if (onChapterCompleted) onChapterCompleted();
         }
       };
 
       utterance.onerror = (e) => {
         if (e.error !== 'canceled' && e.error !== 'interrupted') {
-          console.warn('TTS Notice:', e.error);
+          console.warn('Web Speech fallback error:', e.error);
         }
       };
 
       window.speechSynthesis.speak(utterance);
     },
-    [onChapterCompleted]
+    [calculatePauseDuration, onChapterCompleted]
+  );
+
+  /**
+   * EKSEKUSI PEMUTARAN KALIMAT DENGAN SEQUENCE TOKEN GUARD
+   * Menjamin ketepatan urutan, audio jernih, dan anti-echo tanpa kompromi.
+   */
+  const speakSentenceAtIndex = useCallback(
+    async (index: number) => {
+      // 1. Matikan pemutaran sebelumnya dan dapatkan token urutan baru
+      stopAllAudio();
+      const currentToken = ++playbackTokenRef.current;
+
+      const currentSentences = sentencesRef.current;
+      if (index < 0 || index >= currentSentences.length) {
+        setIsPlaying(false);
+        setIsPaused(false);
+        setActiveSentenceId(null);
+        setIsChapterEnded(true);
+        if (onChapterCompleted) onChapterCompleted();
+        return;
+      }
+
+      const sentence = currentSentences[index];
+      setCurrentIndex(index);
+      setActiveSentenceId(sentence.id);
+      setIsChapterEnded(false);
+      setErrorMessage(null);
+
+      // Jika kuota server sudah tercapai, langsung jalankan Web Speech tanpa request ke server
+      if (isQuotaExceededRef.current) {
+        fallbackWebSpeech(index, sentence, currentSentences);
+        return;
+      }
+
+      // Cerdas: Prefetch 1 kalimat berikutnya di background
+      const next1 = index + 1;
+      if (next1 < currentSentences.length && !isQuotaExceededRef.current) {
+        prefetchSentenceAudio(next1);
+      }
+
+      const userEngine = settingsRef.current.engine;
+      if (userEngine === 'web-speech') {
+        fallbackWebSpeech(index, sentence, currentSentences);
+        return;
+      }
+
+      // Default: Gemini Server Generative Audio
+      setIsLoadingAudio(true);
+      const abortController = new AbortController();
+      activeAbortControllerRef.current = abortController;
+
+      try {
+        const audioUrl = await fetchAudioBlobUrl(sentence, abortController.signal);
+
+        // Guard: Jika token berubah atau player sudah di-stop saat menunggu fetch
+        if (currentToken !== playbackTokenRef.current || !isPlayingRef.current) {
+          return;
+        }
+
+        // Gunakan satu elemen audio persisten (Mencegah memory leak & tumpang tindih)
+        let audio = audioRef.current;
+        if (!audio) {
+          audio = new Audio();
+          audioRef.current = audio;
+        }
+
+        audio.pause();
+        audio.src = audioUrl;
+        audio.playbackRate = settingsRef.current.rate || 1.0;
+        audio.volume = 1.0;
+
+        audio.onplay = () => {
+          if (currentToken !== playbackTokenRef.current) return;
+          setIsLoadingAudio(false);
+          setIsPlaying(true);
+          setIsPaused(false);
+          setAudioSource('gemini-server');
+        };
+
+        audio.onended = () => {
+          if (currentToken !== playbackTokenRef.current || !isPlayingRef.current) return;
+
+          const nextIndex = index + 1;
+          if (nextIndex < currentSentences.length) {
+            const pauseMs = calculatePauseDuration(sentence);
+            pauseTimerRef.current = window.setTimeout(() => {
+              if (currentToken === playbackTokenRef.current && isPlayingRef.current) {
+                speakSentenceAtIndex(nextIndex);
+              }
+            }, pauseMs);
+          } else {
+            setIsPlaying(false);
+            setIsPaused(false);
+            setActiveSentenceId(null);
+            setIsChapterEnded(true);
+            if (onChapterCompleted) onChapterCompleted();
+          }
+        };
+
+        audio.onerror = () => {
+          if (currentToken !== playbackTokenRef.current) return;
+          console.warn('Audio play error, falling back to Web Speech.');
+          fallbackWebSpeech(index, sentence, currentSentences);
+        };
+
+        await audio.play();
+      } catch (err: any) {
+        if (err.name === 'AbortError' || currentToken !== playbackTokenRef.current) {
+          return;
+        }
+        if (err.message === 'QUOTA_EXCEEDED') {
+          isQuotaExceededRef.current = true;
+          setErrorMessage('Batas kuota Gemini tercapai. Narasi otomatis beralih ke suara peramban lokal.');
+        } else {
+          console.warn('Gemini audio fetch failed:', err.message);
+          setErrorMessage('Beralih sementara ke suara Web Speech lokal.');
+        }
+        fallbackWebSpeech(index, sentence, currentSentences);
+      }
+    },
+    [
+      calculatePauseDuration,
+      fallbackWebSpeech,
+      fetchAudioBlobUrl,
+      onChapterCompleted,
+      prefetchSentenceAudio,
+      stopAllAudio,
+    ]
   );
 
   // Play / Resume
@@ -242,36 +493,57 @@ export function useTTSPlayer({
     (indexToPlay?: number) => {
       clearPauseTimer();
       const targetIndex = indexToPlay ?? currentIndexRef.current;
+
+      // Resume jika ada audio yang sedang dijeda di kalimat yang sama
+      if (
+        isPaused &&
+        audioRef.current &&
+        audioRef.current.src &&
+        (indexToPlay === undefined || indexToPlay === currentIndexRef.current)
+      ) {
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setIsPaused(false);
+            setIsChapterEnded(false);
+          })
+          .catch(() => {
+            speakSentenceAtIndex(targetIndex);
+          });
+        return;
+      }
+
       setIsPlaying(true);
       setIsPaused(false);
       setIsChapterEnded(false);
       speakSentenceAtIndex(targetIndex);
     },
-    [speakSentenceAtIndex]
+    [clearPauseTimer, isPaused, speakSentenceAtIndex]
   );
 
   // Pause
   const pause = useCallback(() => {
     clearPauseTimer();
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     setIsPlaying(false);
     setIsPaused(true);
-  }, []);
+  }, [clearPauseTimer]);
 
-  // Stop / Close
+  // Stop
   const stop = useCallback(() => {
-    clearPauseTimer();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllAudio();
     setIsPlaying(false);
     setIsPaused(false);
     setActiveSentenceId(null);
-  }, []);
+  }, [stopAllAudio]);
 
-  // Skip to next sentence
+  // Navigasi kalimat berikutnya
   const nextSentence = useCallback(() => {
     clearPauseTimer();
     const nextIdx = Math.min(sentencesRef.current.length - 1, currentIndexRef.current + 1);
@@ -279,11 +551,12 @@ export function useTTSPlayer({
       speakSentenceAtIndex(nextIdx);
     } else {
       setCurrentIndex(nextIdx);
-      setActiveSentenceId(sentencesRef.current[nextIdx]?.id ?? null);
+      const target = sentencesRef.current[nextIdx];
+      if (target) setActiveSentenceId(target.id);
     }
-  }, [speakSentenceAtIndex]);
+  }, [clearPauseTimer, speakSentenceAtIndex]);
 
-  // Skip to previous sentence
+  // Navigasi kalimat sebelumnya
   const prevSentence = useCallback(() => {
     clearPauseTimer();
     const prevIdx = Math.max(0, currentIndexRef.current - 1);
@@ -291,26 +564,25 @@ export function useTTSPlayer({
       speakSentenceAtIndex(prevIdx);
     } else {
       setCurrentIndex(prevIdx);
-      setActiveSentenceId(sentencesRef.current[prevIdx]?.id ?? null);
+      const target = sentencesRef.current[prevIdx];
+      if (target) setActiveSentenceId(target.id);
     }
-  }, [speakSentenceAtIndex]);
+  }, [clearPauseTimer, speakSentenceAtIndex]);
 
-  // Click on any sentence to play directly
+  // Putar kalimat tertentu dari klik naskah
   const playSentenceById = useCallback(
     (sentenceId: string) => {
-      clearPauseTimer();
       const idx = sentencesRef.current.findIndex((s) => s.id === sentenceId);
       if (idx !== -1) {
         setIsPlaying(true);
         setIsPaused(false);
-        setIsChapterEnded(false);
         speakSentenceAtIndex(idx);
       }
     },
     [speakSentenceAtIndex]
   );
 
-  // Settings updates
+  // Pembaruan pengaturan narasi
   const updateSettings = useCallback(
     (newSettings: Partial<TTSSettings>) => {
       setSettings((prev) => {
@@ -319,68 +591,62 @@ export function useTTSPlayer({
         return updated;
       });
 
-      if (isPlayingRef.current) {
-        clearPauseTimer();
+      // Jika kecepatan diubah saat audio sedang aktif
+      if (newSettings.rate && audioRef.current) {
+        audioRef.current.playbackRate = newSettings.rate;
+      }
+
+      // Jika suara atau mesin diubah saat sedang memutar, reload kalimat saat ini dengan suara baru
+      if (
+        (newSettings.geminiVoice || newSettings.engine) &&
+        isPlayingRef.current
+      ) {
         speakSentenceAtIndex(currentIndexRef.current);
       }
     },
     [speakSentenceAtIndex]
   );
 
-  // Switch Storyteller Mode preset
   const setStorytellerMode = useCallback(
     (mode: StorytellerMode) => {
-      let overrides: Partial<TTSSettings> = { mode };
-      if (mode === 'hikayat') {
-        overrides = {
-          mode: 'hikayat',
-          rate: 0.88,
-          pitch: 0.98,
-          naturalPauses: true,
-          dialogueModulation: true,
-        };
-      } else if (mode === 'renung') {
-        overrides = {
-          mode: 'renung',
-          rate: 0.80,
-          pitch: 0.95,
-          naturalPauses: true,
-          dialogueModulation: true,
-        };
-      } else if (mode === 'wajar') {
-        overrides = {
-          mode: 'wajar',
-          rate: 0.98,
-          pitch: 1.0,
-          naturalPauses: false,
-          dialogueModulation: false,
-        };
-      }
-      updateSettings(overrides);
+      updateSettings({ mode });
     },
     [updateSettings]
   );
 
-  // Clean up on unmount
+  const resetQuotaStatus = useCallback(() => {
+    isQuotaExceededRef.current = false;
+    setErrorMessage(null);
+  }, []);
+
+  const clearClientCache = useCallback(() => {
+    clearAllClientAudioCache();
+  }, []);
+
+  // Cleanup saat komponen unmount
   useEffect(() => {
     return () => {
-      clearPauseTimer();
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopAllAudio();
     };
-  }, []);
+  }, [stopAllAudio]);
+
+  const currentSentence =
+    currentIndex >= 0 && currentIndex < sentences.length ? sentences[currentIndex] : null;
 
   return {
     isPlaying,
     isPaused,
+    isLoadingAudio,
     currentIndex,
     totalSentences: sentences.length,
-    currentSentence: sentences[currentIndex] ?? null,
+    currentSentence,
     activeSentenceId,
-    isChapterEnded,
-    settings,
     availableVoices,
+    isChapterEnded,
+    audioSource,
+    hasStudioAudio,
+    errorMessage,
+    settings,
     play,
     pause,
     stop,
@@ -389,5 +655,7 @@ export function useTTSPlayer({
     playSentenceById,
     updateSettings,
     setStorytellerMode,
+    resetQuotaStatus,
+    clearClientCache,
   };
 }

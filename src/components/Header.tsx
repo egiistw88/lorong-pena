@@ -84,13 +84,13 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Kanan: TTS, Daftar Isi, & Pengaturan */}
         <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
-          {isReadingMode && onToggleTTS && (
+          {onToggleTTS && (
             <button
               id="btn-toggle-tts"
               onClick={onToggleTTS}
               title={isTTSActive ? 'Tutup Pemutar Suara' : 'Dengarkan Naskah (TTS)'}
               aria-label={isTTSActive ? 'Tutup pemutar suara naskah' : 'Dengarkan pembacaan naskah (suara narator)'}
-              className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:opacity-100 active:scale-95"
+              className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:opacity-100 active:scale-95 cursor-pointer"
               style={{
                 color: isTTSActive ? 'var(--quote-accent)' : 'var(--text-secondary)',
                 backgroundColor: isTTSActive ? 'var(--accent-bg)' : 'transparent',

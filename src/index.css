@@ -220,3 +220,27 @@ button, a, input, select, textarea {
     scroll-behavior: auto !important;
   }
 }
+
+/* Sorotan Kalimat Narasi Aktif, Harmonis, Halus, dan Lancar (Opsi C Gemini Audio) */
+.tts-sentence-span {
+  transition: background-color 280ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 200ms ease;
+  border-radius: 4px;
+  padding: 1px 3px;
+  position: relative;
+  display: inline;
+}
+
+.tts-sentence-span:hover {
+  background-color: var(--accent-bg);
+}
+
+.tts-active-sentence {
+  background-color: var(--accent-bg) !important;
+  color: var(--accent-color) !important;
+  box-shadow: 0 0 0 2px var(--accent-bg), inset 0 -2px 0 0 var(--accent-color);
+  border-radius: 4px;
+  font-weight: 500;
+}
+

@@ -82,10 +82,11 @@ export function saveProgress(progress: Partial<ReadingProgress>): ReadingProgres
 }
 
 export const DEFAULT_TTS_SETTINGS: TTSSettings = {
-  engine: 'web-speech',
+  engine: 'gemini-server',
+  geminiVoice: 'Charon',
   mode: 'hikayat',
-  rate: 0.88, // Kecepatan hangat, santai sesuai ritme pendongeng
-  pitch: 0.98, // Nada alami berwibawa
+  rate: 1.0,
+  pitch: 1.0,
   autoScroll: true,
   naturalPauses: true,
   dialogueModulation: true,

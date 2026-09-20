@@ -77,18 +77,71 @@ export interface ReadingProgress {
   unitScrollPercentages?: Record<string, number>;
 }
 
-export type TTSEngine = 'web-speech';
+export type TTSEngine = 'gemini-server' | 'web-speech' | 'studio' | 'hybrid';
+
+export type AudioSourceType = 'gemini-server' | 'web-speech' | 'studio';
+
+export type GeminiVoiceId = 'Charon' | 'Kore' | 'Zephyr' | 'Puck' | 'Fenrir';
 
 export type StorytellerMode = 'hikayat' | 'renung' | 'wajar';
 
 export interface TTSSettings {
-  engine: TTSEngine;
+  engine: TTSEngine; // 'gemini-server' (default suara alami Gemini), 'web-speech'
+  geminiVoice: GeminiVoiceId; // 'Charon' (dalam & tenang), 'Kore' (lembut), dll.
   mode: StorytellerMode; // 'hikayat' (pendongeng hangat), 'renung' (puitis lambat), 'wajar' (standar)
-  rate: number; // default 0.88 (kecepatan narasi santai, hangat)
-  pitch: number; // default 0.98 (nada alami, tidak datar)
+  rate: number; // default 1.0 (kecepatan normal)
+  pitch: number; // default 1.0
   voiceURI?: string;
-  autoScroll: boolean; // scroll otomatis mengikuti kalimat aktif
+  autoScroll: boolean; // scroll otomatis mengikuti kalimat aktif secara halus
   naturalPauses: boolean; // jeda napas alami antar-kalimat, paragraf & adegan
   dialogueModulation: boolean; // modulasi intonasi halus untuk dialog tokoh
 }
+
+export interface TTSTransaction {
+  id: string;
+  timestamp: number;
+  textPreview: string;
+  source: 'cache' | 'gemini-api' | 'silent' | 'web-speech';
+  model?: string;
+  durationMs: number;
+  success: boolean;
+  status: number;
+  errorNote?: string;
+}
+
+export interface RateLimitInfo {
+  isLimited: boolean;
+  exceededAt?: number;
+  retryDelaySeconds?: number;
+  retryAt?: number;
+  message?: string;
+  quotaMetric?: string;
+  quotaId?: string;
+  limitValue?: string;
+}
+
+export interface TTSMonitorStats {
+  status: 'online' | 'rate_limited' | 'error' | 'no_key';
+  hasApiKey: boolean;
+  activeModel: string;
+  candidateModels: string[];
+  cacheSize: number;
+  maxCacheSize: number;
+  metrics: {
+    totalRequests: number;
+    cacheHits: number;
+    cacheMisses: number;
+    apiCalls: number;
+    apiSuccesses: number;
+    apiFailures: number;
+    cacheHitRatePercent: number;
+    lastLatencyMs: number;
+    averageLatencyMs: number;
+    lastRequestTime: number | null;
+  };
+  rateLimitInfo: RateLimitInfo | null;
+  recentTransactions: TTSTransaction[];
+  serverUptimeSeconds: number;
+}
+
 

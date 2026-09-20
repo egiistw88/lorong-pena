@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Sun, Moon, BookOpen, Check, RotateCcw } from 'lucide-react';
+import { X, Sun, Moon, BookOpen, Check, RotateCcw, Volume2, Sparkles, Radio } from 'lucide-react';
 import {
   ReaderSettings,
   ThemeMode,
@@ -8,6 +8,9 @@ import {
   LineHeightOption,
   ColumnWidthOption,
   ModeAnimasiOption,
+  TTSSettings,
+  TTSEngine,
+  AudioSourceType,
 } from '../types';
 import { DEFAULT_SETTINGS } from '../lib/storage';
 
@@ -16,6 +19,12 @@ interface SettingsDrawerProps {
   onClose: () => void;
   settings: ReaderSettings;
   onUpdateSettings: (newSettings: Partial<ReaderSettings>) => void;
+  ttsSettings?: TTSSettings;
+  onUpdateTTSSettings?: (newSettings: Partial<TTSSettings>) => void;
+  onOpenTTS?: () => void;
+  hasStudioAudio?: boolean;
+  audioSource?: AudioSourceType;
+  currentUnitTitle?: string;
 }
 
 export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
@@ -23,6 +32,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onClose,
   settings,
   onUpdateSettings,
+  ttsSettings,
+  onUpdateTTSSettings,
+  onOpenTTS,
+  hasStudioAudio = false,
+  audioSource = 'web-speech',
+  currentUnitTitle,
 }) => {
   // Dukungan tombol Escape untuk menutup drawer
   useEffect(() => {
@@ -341,6 +356,121 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 })}
               </div>
             </div>
+
+            {/* Fitur Narasi Suara (TTS) & Pilihan Mesin Audio */}
+            {ttsSettings && onUpdateTTSSettings && (
+              <div className="pt-3 border-t space-y-3" style={{ borderColor: 'var(--border-subtle)' }}>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
+                    <span>Fitur Narasi Suara (TTS)</span>
+                  </label>
+                  {onOpenTTS && (
+                    <button
+                      id="btn-drawer-open-tts"
+                      onClick={() => {
+                        onClose();
+                        onOpenTTS();
+                      }}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      style={{
+                        borderColor: 'var(--accent-color)',
+                        color: 'var(--accent-color)',
+                        backgroundColor: 'var(--accent-bg)',
+                      }}
+                    >
+                      <Volume2 className="w-3 h-3" />
+                      <span>Buka Pemutar</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Ringkas Bab */}
+                <div
+                  className="p-3 rounded-xl border flex items-start gap-2.5 text-xs"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--accent-color)',
+                  }}
+                >
+                  <Sparkles
+                    className="w-4 h-4 shrink-0 mt-0.5"
+                    style={{ color: 'var(--accent-color)' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-[11px] flex items-center gap-1.5 mb-0.5">
+                      <span>Gemini Studio Generative Audio (Opsi C)</span>
+                      <span
+                        className="text-[9px] font-mono px-1.5 py-0.2 rounded"
+                        style={{
+                          backgroundColor: 'var(--accent-bg)',
+                          color: 'var(--accent-color)',
+                        }}
+                      >
+                        Studio HD
+                      </span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                      Sintesis audio berkualitas tinggi di sisi server dengan sorotan kalimat aktif, halus, dan harmonis.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pilihan Mesin Narasi */}
+                <div>
+                  <div className="text-[11px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    Pilihan Mesin Audio:
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* 1. Gemini Server (Opsi C) */}
+                    <button
+                      id="engine-opt-gemini"
+                      onClick={() => onUpdateTTSSettings({ engine: 'gemini-server' })}
+                      className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                        (ttsSettings.engine || 'gemini-server') === 'gemini-server' ? 'ring-2 font-semibold' : 'hover:opacity-85'
+                      }`}
+                      style={{
+                        borderColor: (ttsSettings.engine || 'gemini-server') === 'gemini-server' ? 'var(--accent-color)' : 'var(--border-subtle)',
+                        backgroundColor: (ttsSettings.engine || 'gemini-server') === 'gemini-server' ? 'var(--accent-bg)' : 'var(--bg-surface)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold">Gemini Server</span>
+                        {(ttsSettings.engine || 'gemini-server') === 'gemini-server' && (
+                          <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
+                        )}
+                      </div>
+                      <p className="text-[10px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                        Suara studio alami berwibawa & jeda sastra.
+                      </p>
+                    </button>
+
+                    {/* 2. Web Speech */}
+                    <button
+                      id="engine-opt-webspeech"
+                      onClick={() => onUpdateTTSSettings({ engine: 'web-speech' })}
+                      className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                        ttsSettings.engine === 'web-speech' ? 'ring-2 font-semibold' : 'hover:opacity-85'
+                      }`}
+                      style={{
+                        borderColor: ttsSettings.engine === 'web-speech' ? 'var(--accent-color)' : 'var(--border-subtle)',
+                        backgroundColor: ttsSettings.engine === 'web-speech' ? 'var(--accent-bg)' : 'var(--bg-surface)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold">Web Speech</span>
+                        {ttsSettings.engine === 'web-speech' && (
+                          <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent-color)' }} />
+                        )}
+                      </div>
+                      <p className="text-[10px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                        Sintesis bawaan peramban lokal perangkat.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Kotak Pratinjau Teks Langsung */}
             <div className="pt-2">

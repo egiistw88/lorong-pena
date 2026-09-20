@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, ArrowRight, UploadCloud, Sliders } from 'lucide-react';
+import { BookOpen, ArrowRight, UploadCloud, Sliders, Volume2 } from 'lucide-react';
 import { UnitNarasi, ReadingProgress } from '../types';
 import { NOVEL_METADATA } from '../content/meta';
 
@@ -11,6 +11,8 @@ interface HomeViewProps {
   onOpenTOC: () => void;
   onOpenSettings?: () => void;
   onOpenImportModal: () => void;
+  onListenTTS?: () => void;
+  hasStudioAudio?: boolean;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -21,6 +23,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenTOC,
   onOpenSettings,
   onOpenImportModal,
+  onListenTTS,
+  hasStudioAudio = false,
 }) => {
   const completedCount = progress.completedUnitIds.length;
   const totalUnits = units.length;
@@ -108,7 +112,41 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </button>
 
-          {/* 2. Tombol Kedua: Daftar Isi & Navigasi Bab */}
+          {/* 2. Tombol Dengarkan Audio Narasi (TTS) */}
+          {onListenTTS && (
+            <button
+              id="btn-home-listen-tts"
+              onClick={onListenTTS}
+              className="w-full min-h-[48px] px-4 py-3 rounded-2xl border flex items-center justify-between transition-all hover:opacity-90 active:scale-98 cursor-pointer"
+              style={{
+                backgroundColor: 'var(--bg-panel)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Volume2 className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-color)' }} />
+                <div className="text-left min-w-0">
+                  <div className="text-sm font-serif font-medium truncate">Dengarkan Narasi Novel</div>
+                  <div className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
+                    Suara studio Gemini & sorotan aktif bab ini
+                  </div>
+                </div>
+              </div>
+              <span
+                className="text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 flex items-center gap-1"
+                style={{
+                  borderColor: 'var(--accent-color)',
+                  color: 'var(--accent-color)',
+                  backgroundColor: 'var(--accent-bg)',
+                }}
+              >
+                Gemini Audio
+              </span>
+            </button>
+          )}
+
+          {/* 3. Tombol Daftar Isi & Navigasi Bab */}
           <button
             id="btn-home-open-toc"
             onClick={onOpenTOC}

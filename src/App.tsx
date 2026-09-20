@@ -161,6 +161,16 @@ export default function App() {
   });
 
   const handleToggleTTS = useCallback(() => {
+    if (activeView !== 'reader') {
+      setActiveView('reader');
+      setIsChromeVisible(true);
+      setIsTTSOpen(true);
+      if (!tts.isPlaying) {
+        tts.play();
+      }
+      return;
+    }
+
     setIsTTSOpen((prev) => {
       const nextState = !prev;
       if (nextState) {
@@ -172,7 +182,7 @@ export default function App() {
       }
       return nextState;
     });
-  }, [tts]);
+  }, [activeView, tts]);
 
   const handleSentenceClick = useCallback((sentenceId: string) => {
     setIsTTSOpen(true);
@@ -229,6 +239,8 @@ export default function App() {
           onOpenTOC={() => setIsTOCOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenImportModal={() => setIsImportModalOpen(true)}
+          onListenTTS={handleToggleTTS}
+          hasStudioAudio={tts.hasStudioAudio}
         />
       ) : (
         <>
@@ -272,12 +284,16 @@ export default function App() {
           nextUnit={nextUnit}
           isPlaying={tts.isPlaying}
           isPaused={tts.isPaused}
+          isLoadingAudio={tts.isLoadingAudio}
+          errorMessage={tts.errorMessage}
           currentIndex={tts.currentIndex}
           totalSentences={tts.totalSentences}
           currentSentence={tts.currentSentence}
           isChapterEnded={tts.isChapterEnded}
           settings={tts.settings}
           availableVoices={tts.availableVoices}
+          audioSource={tts.audioSource}
+          hasStudioAudio={tts.hasStudioAudio}
           onPlay={tts.play}
           onPause={tts.pause}
           onStop={() => {
@@ -288,6 +304,8 @@ export default function App() {
           onPrev={tts.prevSentence}
           onUpdateSettings={tts.updateSettings}
           onSetStorytellerMode={tts.setStorytellerMode}
+          onResetQuotaStatus={tts.resetQuotaStatus}
+          onClearClientCache={tts.clearClientCache}
           onNavigateToNextUnit={() => {
             if (nextUnit) {
               handleNavigateToUnit(nextUnit.id);
@@ -315,6 +333,19 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
+        ttsSettings={tts.settings}
+        onUpdateTTSSettings={tts.updateSettings}
+        onOpenTTS={() => {
+          setActiveView('reader');
+          setIsChromeVisible(true);
+          setIsTTSOpen(true);
+          if (!tts.isPlaying) {
+            tts.play();
+          }
+        }}
+        hasStudioAudio={tts.hasStudioAudio}
+        audioSource={tts.audioSource}
+        currentUnitTitle={currentUnit?.judul}
       />
 
       {/* Manuscript Import / Pipeline Modal */}
