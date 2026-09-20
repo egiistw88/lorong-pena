@@ -184,6 +184,23 @@ export const TTSMonitorModal: React.FC<TTSMonitorModalProps> = ({
                       : 'Tidak Aktif'}
                   </span>
                 </span>
+
+                {/* Indikator R2 Cache Persisten */}
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium font-mono ${
+                    stats?.hasPersistentCache
+                      ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                      : 'bg-neutral-500/10 text-neutral-500'
+                  }`}
+                  title={
+                    stats?.hasPersistentCache
+                      ? 'Cloudflare R2 terhubung: Audio persisten lintas restart/sleep server'
+                      : 'Cache in-memory saja: Audio hilang saat server tidur/restart'
+                  }
+                >
+                  <Layers className="w-2.5 h-2.5" />
+                  <span>{stats?.hasPersistentCache ? 'R2 Cache Aktif' : 'In-Memory Only'}</span>
+                </span>
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 Pelacakan langsung ketersediaan kuota, latensi, dan model aktif Gemini
@@ -485,7 +502,7 @@ export const TTSMonitorModal: React.FC<TTSMonitorModalProps> = ({
               <span>Ketentuan Kuota & Desain Arsitektur Hemat Lorong Pena</span>
             </div>
             <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              • <strong>In-Memory Micro-Cache:</strong> Setiap kalimat yang telah disintesis disimpan di memori server dan peramban, sehingga replay atau pengulangan bab tidak lagi memakan kuota Gemini API.
+              • <strong>In-Memory & Persisten R2 Cache:</strong> Setiap kalimat yang disintesis disimpan di memori dan dapat dipersistensikan ke bucket Cloudflare R2 sehingga hemat kuota/biaya dan tahan lintas sleep/restart server.
             </p>
             <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               • <strong>Multi-Model Cascade:</strong> Memprioritaskan <code className="font-mono text-[10px] bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded">gemini-2.5-flash-preview-tts</code> dengan kuota lebih lapang, beralih mulus ke <code className="font-mono text-[10px] bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded">gemini-3.1-flash-tts-preview</code> saat diperlukan.

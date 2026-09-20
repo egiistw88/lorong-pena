@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import crypto from 'node:crypto';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 // Inisialisasi Google GenAI dengan GEMINI_API_KEY
 const apiKey = process.env.GEMINI_API_KEY;
@@ -16,6 +17,59 @@ if (apiKey) {
       },
     },
   });
+}
+
+// ■■ Cache persisten R2 (lapisan L2, di belakang cache in-memory) ■■■■■■■■■■
+// Server live (mis. Render free tier) bisa sleep/restart kapan saja, dan
+// setiap kali itu terjadi cache in-memory (Map) di bawah ini ikut hilang.
+// Tanpa lapisan persisten, setiap bangun-tidur server berarti audio yang
+// SAMA di-generate ulang lewat Gemini — menagih kuota/biaya berulang untuk
+// konten yang sama persis. R2 dipakai di sini sebagai cache persisten:
+// kalau env var R2 tidak diisi, lapisan ini otomatis nonaktif (server tetap
+// jalan seperti sebelumnya, in-memory-only) — tidak fatal, cuma tidak
+// hemat lintas-restart.
+const r2Configured = Boolean(
+  process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET_NAME && process.env.R2_ACCESS_KEY_ID
+);
+const r2 = r2Configured
+  ? new S3Client({
+      region: 'auto',
+      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      },
+    })
+  : null;
+const R2_BUCKET = process.env.R2_BUCKET_NAME ?? '';
+
+async function getFromR2(cacheKey: string): Promise<Buffer | null> {
+  if (!r2) return null;
+  try {
+    const obj = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: `tts-cache/${cacheKey}.wav` }));
+    const bytes = await obj.Body?.transformToByteArray();
+    return bytes ? Buffer.from(bytes) : null;
+  } catch {
+    // Belum ada di R2 (cache miss) — bukan error, lanjut ke Gemini seperti biasa.
+    return null;
+  }
+}
+
+function putToR2(cacheKey: string, buffer: Buffer): void {
+  if (!r2) return;
+  // Fire-and-forget: jangan bikin pembaca menunggu upload R2 selesai
+  // sebelum audio pertama dia dengar diputar.
+  r2
+    .send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: `tts-cache/${cacheKey}.wav`,
+        Body: buffer,
+        ContentType: 'audio/wav',
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    )
+    .catch((err) => console.warn('Gagal menyimpan cache TTS ke R2 (tidak fatal):', err.message));
 }
 
 // In-Memory Audio Cache (Key: MD5(text + voice + rate) -> WAV Buffer)
@@ -224,6 +278,7 @@ async function startServer() {
     res.json({
       status: overallStatus,
       hasApiKey: Boolean(ai),
+      hasPersistentCache: r2Configured,
       activeModel: ttsTelemetry.activeModel,
       candidateModels: ttsTelemetry.candidateModels,
       cacheSize: audioCache.size,
@@ -344,7 +399,7 @@ async function startServer() {
       const cacheKey = getCacheKey(cleanText, selectedVoice, rate);
       const cached = audioCache.get(cacheKey);
 
-      // Cache HIT: respon instan dalam <2ms
+      // Cache HIT (in-memory): respon instan dalam <2ms
       if (cached) {
         ttsTelemetry.cacheHits += 1;
         const duration = Date.now() - requestStartTime;
@@ -362,6 +417,30 @@ async function startServer() {
         res.setHeader('X-Audio-Cache', 'HIT');
         res.setHeader('Cache-Control', 'public, max-age=86400');
         return res.send(cached.buffer);
+      }
+
+      // Cache HIT (R2, lapisan persisten): lebih lambat dari in-memory, tapi
+      // masih JAUH lebih murah & cepat daripada memanggil Gemini ulang —
+      // ini yang menyelamatkan dari sleep/restart-nya Render free tier.
+      const r2Cached = await getFromR2(cacheKey);
+      if (r2Cached) {
+        ttsTelemetry.cacheHits += 1;
+        audioCache.set(cacheKey, { buffer: r2Cached, createdAt: Date.now() });
+        const duration = Date.now() - requestStartTime;
+        recordTransaction({
+          timestamp: requestStartTime,
+          textPreview,
+          source: 'cache',
+          model: 'R2 Persistent Cache',
+          durationMs: duration,
+          success: true,
+          status: 200,
+        });
+
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('X-Audio-Cache', 'HIT-R2');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(r2Cached);
       }
 
       ttsTelemetry.cacheMisses += 1;
@@ -528,6 +607,7 @@ async function startServer() {
         if (firstKey) audioCache.delete(firstKey);
       }
       audioCache.set(cacheKey, { buffer: wavBuffer, createdAt: Date.now() });
+      putToR2(cacheKey, wavBuffer);
 
       recordTransaction({
         timestamp: requestStartTime,

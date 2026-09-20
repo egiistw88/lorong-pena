@@ -123,6 +123,7 @@ export interface RateLimitInfo {
 export interface TTSMonitorStats {
   status: 'online' | 'rate_limited' | 'error' | 'no_key';
   hasApiKey: boolean;
+  hasPersistentCache?: boolean;
   activeModel: string;
   candidateModels: string[];
   cacheSize: number;
